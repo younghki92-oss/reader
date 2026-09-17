@@ -12,156 +12,113 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&family=Noto+Sans+KR:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
-  --room:#1B2128;        /* 서재 배경 */
-  --shelf:#252D36;       /* 책 줄 */
-  --shelf-hi:#2F3945;
-  --line:#37424F;
-  --text:#E8E6E1;
-  --muted:#93A0AE;
-  --brass:#C8A45C;
-  --paper:#FCFAF6;
-  --paper-ink:#23262B;
-  --sepia:#F2E9D8;
-  --sepia-ink:#3B3226;
-  --night:#14171B;
-  --night-ink:#C3C7CC;
-  --c-comm:#6E8FB8;      /* 성경주석 */
-  --c-theo:#8A7BB8;      /* 신학 */
-  --c-serm:#C8A45C;      /* 설교 */
-  --c-past:#6FA58C;      /* 목회·사역 */
-  --c-devo:#B87B8A;      /* 영성·경건 */
-  --c-gen:#7E8A97;       /* 일반 */
+  --room:#1B2128; --shelf:#252D36; --shelf-hi:#2F3945; --line:#37424F;
+  --text:#E8E6E1; --muted:#93A0AE; --brass:#C8A45C;
+  --paper:#FCFAF6; --paper-ink:#23262B;
+  --sepia:#F2E9D8; --sepia-ink:#3B3226;
+  --night:#14171B; --night-ink:#C3C7CC;
   --serif:"Noto Serif KR",Georgia,serif;
   --sans:"Noto Sans KR",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0}
-body{
-  background:var(--room);color:var(--text);font-family:var(--sans);
-  font-size:15px;line-height:1.5;overscroll-behavior:none;
-}
+body{background:var(--room);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.5;overscroll-behavior:none}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
-input,select{font:inherit}
+input,select,textarea{font:inherit}
 :focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 .screen{display:none;height:100%;flex-direction:column}
 .screen.on{display:flex}
 
-/* ---------- 공통 ---------- */
-.bar{
-  display:flex;align-items:center;gap:12px;
-  padding:calc(env(safe-area-inset-top) + 14px) 18px 12px;
-  border-bottom:1px solid var(--line);flex:0 0 auto;
-}
+.bar{display:flex;align-items:center;gap:10px;padding:calc(env(safe-area-inset-top) + 14px) 16px 12px;border-bottom:1px solid var(--line);flex:0 0 auto}
 .bar h1{font-family:var(--serif);font-weight:600;font-size:20px;margin:0;letter-spacing:-.01em}
 .bar .grow{flex:1}
-.iconbtn{
-  width:38px;height:38px;border-radius:10px;display:grid;place-items:center;
-  color:var(--muted);flex:0 0 auto;
-}
+.iconbtn{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;color:var(--muted);flex:0 0 auto}
 .iconbtn:hover{background:var(--shelf-hi);color:var(--text)}
+.iconbtn.act{color:var(--brass)}
 .iconbtn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.iconbtn.fill svg{fill:currentColor}
 
-/* ---------- 설정/연결 ---------- */
 .pane{max-width:620px;width:100%;margin:0 auto;padding:28px 22px 60px;overflow-y:auto}
 .pane h2{font-family:var(--serif);font-size:24px;font-weight:600;margin:0 0 6px}
 .pane p.lead{color:var(--muted);margin:0 0 26px;line-height:1.6}
 .field{margin-bottom:20px}
 .field label{display:block;margin-bottom:7px;font-size:13px;color:var(--muted)}
-.field input{
-  width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);
-  background:#151A20;color:var(--text);
-}
+.field input,.field select,.field textarea{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#151A20;color:var(--text)}
+.field textarea{min-height:110px;resize:vertical;line-height:1.6}
 .field .hint{margin-top:7px;font-size:12.5px;color:var(--muted);line-height:1.55}
-.primary{
-  width:100%;padding:13px;border-radius:10px;background:var(--brass);color:#1B2128;
-  font-weight:500;margin-top:6px;
-}
+.primary{width:100%;padding:13px;border-radius:10px;background:var(--brass);color:#1B2128;font-weight:500;margin-top:6px}
 .primary:disabled{opacity:.5;cursor:default}
-.ghost{padding:10px 14px;border-radius:9px;border:1px solid var(--line);color:var(--muted)}
+.ghost{padding:11px 14px;border-radius:9px;border:1px solid var(--line);color:var(--muted)}
 .ghost:hover{color:var(--text);border-color:var(--muted)}
+.danger{color:#D88}
 details.help{margin-top:26px;border-top:1px solid var(--line);padding-top:18px}
 details.help summary{color:var(--brass);cursor:pointer;font-size:14px}
 details.help ol{color:var(--muted);line-height:1.75;padding-left:20px;font-size:13.5px}
 details.help code{background:#151A20;padding:1px 5px;border-radius:4px;color:var(--text);font-size:12.5px;word-break:break-all}
 
-/* ---------- 서재 ---------- */
-#search{
-  width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--line);
-  background:#151A20;color:var(--text);
-}
-.filters{
-  display:flex;gap:8px;padding:12px 18px;overflow-x:auto;flex:0 0 auto;
-  scrollbar-width:none;border-bottom:1px solid var(--line);
-}
+#search{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:#151A20;color:var(--text)}
+.filters{display:flex;gap:8px;padding:12px 16px;overflow-x:auto;flex:0 0 auto;scrollbar-width:none;border-bottom:1px solid var(--line)}
 .filters::-webkit-scrollbar{display:none}
-.chip{
-  white-space:nowrap;padding:6px 12px;border-radius:999px;border:1px solid var(--line);
-  color:var(--muted);font-size:13px;display:flex;align-items:center;gap:7px;
-}
+.chip{white-space:nowrap;padding:6px 12px;border-radius:999px;border:1px solid var(--line);color:var(--muted);font-size:13px;display:flex;align-items:center;gap:7px}
 .chip .dot{width:7px;height:7px;border-radius:2px;background:currentColor}
 .chip.sel{background:var(--shelf-hi);color:var(--text);border-color:transparent}
+.chip.add{color:var(--brass);border-style:dashed}
 .shelf{flex:1;overflow-y:auto;padding:6px 0 40px;-webkit-overflow-scrolling:touch}
-.row{
-  display:grid;grid-template-columns:6px 1fr auto;gap:14px;align-items:center;
-  padding:13px 18px 13px 0;border-bottom:1px solid rgba(255,255,255,.04);
-  width:100%;text-align:left;
-}
+.row{display:grid;grid-template-columns:6px 1fr auto;gap:14px;align-items:center;padding:13px 16px 13px 0;border-bottom:1px solid rgba(255,255,255,.04);width:100%;text-align:left}
 .row:hover{background:var(--shelf)}
-.spine{
-  width:6px;height:46px;border-radius:0 3px 3px 0;background:var(--sp,#7E8A97);
-  position:relative;overflow:hidden;opacity:.42;
-}
+.spine{width:6px;height:46px;border-radius:0 3px 3px 0;background:var(--sp,#7E8A97);position:relative;overflow:hidden;opacity:.42}
 .spine i{position:absolute;left:0;right:0;bottom:0;height:var(--fill,0%);background:var(--sp,#7E8A97);opacity:1}
 .meta{min-width:0}
-.meta .t{
-  font-family:var(--serif);font-size:16px;line-height:1.35;
-  overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
-}
-.meta .a{font-size:12.5px;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta .t{font-family:var(--serif);font-size:16px;line-height:1.35;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.meta .a{font-size:12.5px;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.tag{display:inline-block;font-size:10.5px;border:1px solid var(--line);border-radius:4px;padding:0 4px;margin-right:6px;color:var(--muted);vertical-align:1px}
 .pct{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;padding-right:2px}
 .pct.done{color:var(--brass)}
 .empty{padding:60px 24px;text-align:center;color:var(--muted);line-height:1.7}
 .empty b{display:block;color:var(--text);font-family:var(--serif);font-size:18px;margin-bottom:8px;font-weight:600}
-.status{padding:10px 18px;font-size:13px;color:var(--muted);border-bottom:1px solid var(--line)}
+.status{padding:10px 16px;font-size:13px;color:var(--muted);border-bottom:1px solid var(--line)}
 
-/* ---------- 읽기 ---------- */
+/* 읽기 */
 #reader{background:var(--paper)}
 #reader.sepia{background:var(--sepia)}
 #reader.night{background:var(--night)}
-#viewer{flex:1;min-height:0;position:relative;transition:opacity .13s ease}
+#stage{flex:1;min-height:0;position:relative}
+#viewer{position:absolute;inset:0;transition:opacity .13s ease}
 #viewer.turning{opacity:.25}
-.rbar{
-  position:fixed;left:0;right:0;z-index:20;background:rgba(27,33,40,.96);
-  backdrop-filter:blur(8px);transition:transform .22s ease;
-}
-.rbar.top{top:0;padding:calc(env(safe-area-inset-top) + 10px) 12px 10px;display:flex;align-items:center;gap:8px}
+#pdfWrap{position:absolute;inset:0;display:none;overflow:auto;-webkit-overflow-scrolling:touch}
+#pdfWrap.on{display:block}
+#pdfPage{position:relative;margin:0 auto}
+#pdfPage canvas{display:block;width:100%;height:auto}
+#pdfMarks{position:absolute;inset:0;pointer-events:none}
+#pdfMarks div{position:absolute;border-radius:2px}
+.textLayer{position:absolute;inset:0;overflow:hidden;line-height:1;opacity:1}
+.textLayer span,.textLayer br{color:transparent;position:absolute;white-space:pre;cursor:text;transform-origin:0 0}
+.textLayer ::selection{background:rgba(110,143,184,.45)}
+.loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:14px;background:inherit;z-index:5;text-align:center;padding:20px}
+.rbar{position:fixed;left:0;right:0;z-index:20;background:rgba(27,33,40,.96);backdrop-filter:blur(8px);transition:transform .22s ease}
+.rbar.top{top:0;padding:calc(env(safe-area-inset-top) + 10px) 8px 10px;display:flex;align-items:center;gap:4px}
 .rbar.top.hide{transform:translateY(-105%)}
-.rbar.bottom{bottom:0;padding:10px 18px calc(env(safe-area-inset-bottom) + 12px);display:flex;align-items:center;gap:14px}
+.rbar.bottom{bottom:0;padding:10px 16px calc(env(safe-area-inset-bottom) + 12px);display:flex;align-items:center;gap:14px}
 .rbar.bottom.hide{transform:translateY(105%)}
-.rbar .title{
-  flex:1;min-width:0;font-family:var(--serif);font-size:15px;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-}
+.rbar .title{flex:1;min-width:0;font-family:var(--serif);font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
 .progline{flex:1;height:3px;background:var(--line);border-radius:2px;overflow:hidden}
 .progline i{display:block;height:100%;background:var(--brass);width:0}
 .rbar .num{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
-.loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:14px;background:inherit}
 
-/* ---------- 시트 ---------- */
-.sheet{
-  position:fixed;inset:0;z-index:40;background:rgba(10,13,16,.6);
-  display:none;align-items:flex-end;justify-content:center;
-}
+/* 선택 메뉴 */
+.selmenu{position:fixed;z-index:70;display:none;gap:3px;background:#0F1318;border:1px solid var(--line);border-radius:12px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.selmenu.on{display:flex}
+.selmenu button{width:34px;height:34px;border-radius:8px;display:grid;place-items:center}
+.selmenu button:hover{background:var(--shelf-hi)}
+.selmenu .sw{width:19px;height:19px;border-radius:50%;border:1px solid rgba(0,0,0,.25)}
+.selmenu svg{width:18px;height:18px;fill:none;stroke:var(--text);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.selmenu .sep{width:1px;background:var(--line);margin:4px 3px}
+
+/* 시트 */
+.sheet{position:fixed;inset:0;z-index:40;background:rgba(10,13,16,.6);display:none;align-items:flex-end;justify-content:center}
 .sheet.on{display:flex}
-.sheet .box{
-  background:var(--shelf);width:100%;max-width:560px;border-radius:18px 18px 0 0;
-  padding:22px 22px calc(env(safe-area-inset-bottom) + 22px);max-height:88%;overflow-y:auto;
-}
+.sheet .box{background:var(--shelf);width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:22px 20px calc(env(safe-area-inset-bottom) + 22px);max-height:88%;overflow-y:auto}
 .sheet h3{font-family:var(--serif);font-size:18px;font-weight:600;margin:0 0 18px}
-.sheet .field input,.sheet .field select{
-  width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--line);
-  background:#151A20;color:var(--text);
-}
 .sheet .actions{display:flex;gap:10px;margin-top:8px}
 .sheet .actions .primary{margin-top:0}
 .seg{display:flex;gap:6px;flex-wrap:wrap}
@@ -170,93 +127,98 @@ details.help code{background:#151A20;padding:1px 5px;border-radius:4px;color:var
 .sizerow{display:flex;align-items:center;gap:12px}
 .sizerow button{width:42px;height:38px;border:1px solid var(--line);border-radius:9px;font-size:17px}
 .sizerow span{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13.5px}
-.toast{
-  position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 24px);transform:translateX(-50%);
-  background:#0F1318;border:1px solid var(--line);padding:11px 18px;border-radius:999px;
-  font-size:13.5px;z-index:60;opacity:0;pointer-events:none;transition:opacity .2s;
-}
+.tabs{display:flex;gap:6px;margin-bottom:16px}
+.tabs button{flex:1;padding:9px;border-radius:9px;border:1px solid var(--line);color:var(--muted);font-size:13.5px}
+.tabs button.sel{background:var(--shelf-hi);color:var(--text);border-color:transparent}
+.listwrap{max-height:56vh;overflow-y:auto;margin:0 -4px}
+.item{display:flex;gap:12px;padding:12px 4px;border-bottom:1px solid rgba(255,255,255,.05);align-items:flex-start;text-align:left;width:100%}
+.item .barc{width:4px;align-self:stretch;border-radius:2px;flex:0 0 auto;min-height:32px}
+.item .body{flex:1;min-width:0}
+.item .ex{font-family:var(--serif);font-size:14px;line-height:1.5;color:var(--text);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.item .nt{font-size:12.5px;color:var(--brass);margin-top:6px;line-height:1.5;white-space:pre-wrap}
+.item .wh{font-size:11.5px;color:var(--muted);margin-top:6px}
+.item .x{color:var(--muted);padding:2px 4px;flex:0 0 auto}
+.catrow{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.catrow .sw{width:22px;height:22px;border-radius:6px;flex:0 0 auto;border:1px solid rgba(255,255,255,.12)}
+.catrow .nm{flex:1;min-width:0;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.catrow .cnt{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.palette{display:flex;gap:8px;flex-wrap:wrap}
+.palette button{width:30px;height:30px;border-radius:8px;border:2px solid transparent}
+.palette button.sel{border-color:var(--text)}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 24px);transform:translateX(-50%);background:#0F1318;border:1px solid var(--line);padding:11px 18px;border-radius:999px;font-size:13.5px;z-index:80;opacity:0;pointer-events:none;transition:opacity .2s;max-width:88%;text-align:center}
 .toast.on{opacity:1}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
 
-<!-- ══════════ 1. 연결 ══════════ -->
+<!-- 연결 -->
 <section id="setup" class="screen on">
   <div class="pane">
     <h2>서재를 드라이브에 연결합니다</h2>
     <p class="lead">두 칸은 이미 채워져 있습니다. 아래 버튼만 누르시면 됩니다. 한 번 연결하면 맥북과 폴드에서 같은 책, 같은 위치로 이어집니다.</p>
-
     <div class="field">
       <label for="cid">Google 클라이언트 ID</label>
-      <input id="cid" placeholder="000000000000-xxxxxxxx.apps.googleusercontent.com" autocomplete="off" spellcheck="false">
-      <div class="hint">구글 클라우드 콘솔에서 발급받은 값입니다. 아래 "처음 설정하는 법"에 순서가 있습니다.</div>
+      <input id="cid" autocomplete="off" spellcheck="false">
     </div>
-
     <div class="field">
       <label for="fid">책이 들어 있는 드라이브 폴더 ID</label>
-      <input id="fid" placeholder="1AbCdEfGhIjKlMnOpQrStUvWxYz" autocomplete="off" spellcheck="false">
-      <div class="hint">드라이브에서 폴더를 열었을 때 주소의 <code>folders/</code> 뒤에 붙는 긴 글자입니다. 하위 폴더까지 전부 찾습니다.</div>
+      <input id="fid" autocomplete="off" spellcheck="false">
+      <div class="hint">하위 폴더까지 전부 찾습니다. EPUB과 PDF를 모두 읽습니다.</div>
     </div>
-
     <button id="connect" class="primary">구글 계정으로 연결</button>
-
     <details class="help">
       <summary>처음 설정하는 법</summary>
       <ol>
-        <li><b>console.cloud.google.com</b> 접속 → 상단에서 새 프로젝트를 만듭니다. 이름은 아무거나("서재") 괜찮습니다.</li>
-        <li>왼쪽 메뉴 <b>API 및 서비스 → 라이브러리</b> → "Google Drive API" 검색 → <b>사용</b>을 누릅니다.</li>
-        <li><b>OAuth 동의 화면</b> → 사용자 유형 <b>외부</b> → 앱 이름과 본인 이메일만 채우고 저장합니다.</li>
-        <li>같은 화면의 <b>테스트 사용자</b>에 본인 Gmail 주소를 추가합니다. 이게 빠지면 로그인이 막힙니다.</li>
-        <li><b>사용자 인증 정보 → 사용자 인증 정보 만들기 → OAuth 클라이언트 ID</b> → 유형 <b>웹 애플리케이션</b>.</li>
-        <li><b>승인된 자바스크립트 원본</b>에 이 앱의 주소를 넣습니다. 끝의 저장소 이름은 빼고 도메인까지만 넣어야 합니다. 예: <code>https://younghki92-oss.github.io</code></li>
-        <li>만들면 나오는 <b>클라이언트 ID</b>를 복사해 위 칸에 붙여넣습니다.</li>
-        <li>처음 로그인할 때 "Google에서 확인하지 않은 앱" 경고가 뜹니다. <b>고급 → 이동</b>을 누르면 됩니다. 본인만 쓰는 앱이라 정상입니다.</li>
+        <li><b>console.cloud.google.com</b> → 새 프로젝트를 만듭니다.</li>
+        <li><b>API 및 서비스 → 라이브러리</b> → "Google Drive API" → <b>사용</b>.</li>
+        <li><b>OAuth 동의 화면</b> → <b>외부</b> → 앱 이름과 본인 이메일 입력.</li>
+        <li><b>테스트 사용자</b>에 본인 Gmail을 추가합니다. 빠지면 로그인이 막힙니다.</li>
+        <li><b>사용자 인증 정보 → OAuth 클라이언트 ID → 웹 애플리케이션</b>.</li>
+        <li><b>승인된 자바스크립트 원본</b>에 도메인까지만 넣습니다: <code>https://younghki92-oss.github.io</code></li>
+        <li>첫 로그인 때 뜨는 "확인하지 않은 앱" 경고는 <b>고급 → 이동</b>으로 넘어갑니다.</li>
       </ol>
     </details>
   </div>
 </section>
 
-<!-- ══════════ 2. 서재 ══════════ -->
+<!-- 서재 -->
 <section id="library" class="screen">
   <div class="bar">
-    <h1>서재</h1>
-    <div class="grow"></div>
-    <button class="iconbtn" id="btnRefresh" title="드라이브 다시 읽기" aria-label="드라이브 다시 읽기">
-      <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg>
-    </button>
-    <button class="iconbtn" id="btnSettings" title="설정" aria-label="설정">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 7 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H1a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 2.6 7a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H7a1.7 1.7 0 0 0 1-1.5V1a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V7a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-    </button>
+    <h1>서재</h1><div class="grow"></div>
+    <button class="iconbtn" id="btnRefresh" aria-label="드라이브 다시 읽기"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg></button>
+    <button class="iconbtn" id="btnSettings" aria-label="설정"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg></button>
   </div>
-  <div style="padding:12px 18px 0"><input id="search" placeholder="제목이나 저자 검색" autocomplete="off"></div>
+  <div style="padding:12px 16px 0"><input id="search" placeholder="제목이나 저자 검색" autocomplete="off"></div>
   <div class="filters" id="filters"></div>
   <div class="status" id="status" hidden></div>
   <div class="shelf" id="shelf"></div>
 </section>
 
-<!-- ══════════ 3. 읽기 ══════════ -->
+<!-- 읽기 -->
 <section id="reader" class="screen">
   <div class="rbar top" id="rtop">
-    <button class="iconbtn" id="btnBack" aria-label="서재로">
-      <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
-    </button>
+    <button class="iconbtn" id="btnBack" aria-label="서재로"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
     <div class="title" id="rtitle"></div>
-    <button class="iconbtn" id="btnToc" aria-label="목차">
-      <svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
-    </button>
-    <button class="iconbtn" id="btnView" aria-label="보기 설정">
-      <svg viewBox="0 0 24 24"><path d="M4 7V5h16v2M9 20h6M12 5v15"/></svg>
-    </button>
+    <button class="iconbtn" id="btnBm" aria-label="책갈피"><svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></button>
+    <button class="iconbtn" id="btnNotes" aria-label="하이라이트와 책갈피"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></button>
+    <button class="iconbtn" id="btnView" aria-label="보기 설정"><svg viewBox="0 0 24 24"><path d="M4 7V5h16v2M9 20h6M12 5v15"/></svg></button>
   </div>
-  <div id="viewer"><div class="loading" id="rload">책을 여는 중…</div></div>
+  <div id="stage">
+    <div id="viewer"></div>
+    <div id="pdfWrap"><div id="pdfPage"><canvas id="pdfCanvas"></canvas><div id="pdfText" class="textLayer"></div><div id="pdfMarks"></div></div></div>
+    <div class="loading" id="rload">책을 여는 중…</div>
+  </div>
   <div class="rbar bottom" id="rbot">
     <div class="progline"><i id="rfill"></i></div>
     <div class="num" id="rnum">0%</div>
   </div>
 </section>
 
-<!-- ══════════ 시트들 ══════════ -->
+<!-- 선택 메뉴 -->
+<div class="selmenu" id="selmenu"></div>
+
+<!-- 책 정보 -->
 <div class="sheet" id="sheetBook"><div class="box">
   <h3>책 정보 고치기</h3>
   <div class="field"><label>제목</label><input id="ebTitle"></div>
@@ -268,39 +230,87 @@ details.help code{background:#151A20;padding:1px 5px;border-radius:4px;color:var
   </div>
 </div></div>
 
+<!-- 보기 설정 -->
 <div class="sheet" id="sheetView"><div class="box">
   <h3>보기 설정</h3>
   <div class="field"><label>배경</label><div class="seg" id="segTheme">
-    <button data-v="paper">종이</button><button data-v="sepia">세피아</button><button data-v="night">야간</button>
-  </div></div>
-  <div class="field"><label>글꼴</label><div class="seg" id="segFont">
-    <button data-v="serif">명조</button><button data-v="sans">고딕</button>
-  </div></div>
-  <div class="field"><label>글자 크기</label><div class="sizerow">
-    <button id="fsDown" aria-label="작게">−</button><span id="fsNow">18px</span><button id="fsUp" aria-label="크게">+</button>
-  </div></div>
-  <div class="field"><label>펼친 화면에서 두 쪽 보기</label><div class="seg" id="segSpread">
-    <button data-v="auto">자동</button><button data-v="none">항상 한 쪽</button>
-  </div></div>
+    <button data-v="paper">종이</button><button data-v="sepia">세피아</button><button data-v="night">야간</button></div></div>
+  <div id="epubOnly">
+    <div class="field"><label>글꼴</label><div class="seg" id="segFont">
+      <button data-v="serif">명조</button><button data-v="sans">고딕</button></div></div>
+    <div class="field"><label>글자 크기</label><div class="sizerow">
+      <button id="fsDown" aria-label="작게">−</button><span id="fsNow">18px</span><button id="fsUp" aria-label="크게">+</button></div></div>
+    <div class="field"><label>펼친 화면에서 두 쪽 보기</label><div class="seg" id="segSpread">
+      <button data-v="auto">자동</button><button data-v="none">항상 한 쪽</button></div></div>
+  </div>
+  <div id="pdfOnly" hidden>
+    <div class="field"><label>PDF 화면 맞춤</label><div class="seg" id="segFit">
+      <button data-v="page">한 쪽 전체</button><button data-v="width">폭에 맞춤</button></div></div>
+    <div class="field"><label>이동</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="pgJump" type="number" min="1" style="flex:1;padding:11px 13px;border-radius:9px;border:1px solid var(--line);background:#151A20;color:var(--text)">
+        <button class="ghost" id="pgGo">쪽으로</button>
+      </div></div>
+  </div>
   <button class="ghost" id="vClose" style="width:100%;margin-top:6px">닫기</button>
 </div></div>
 
-<div class="sheet" id="sheetToc"><div class="box">
-  <h3>목차</h3>
-  <div id="tocList" style="max-height:60vh;overflow-y:auto"></div>
-  <button class="ghost" id="tocClose" style="width:100%;margin-top:16px">닫기</button>
+<!-- 목차·하이라이트·책갈피 -->
+<div class="sheet" id="sheetNotes"><div class="box">
+  <div class="tabs" id="noteTabs">
+    <button data-v="toc" class="sel">목차</button>
+    <button data-v="marks">하이라이트</button>
+    <button data-v="bm">책갈피</button>
+  </div>
+  <div class="listwrap" id="noteList"></div>
+  <button class="ghost" id="ntClose" style="width:100%;margin-top:16px">닫기</button>
 </div></div>
 
+<!-- 메모 -->
+<div class="sheet" id="sheetNote"><div class="box">
+  <h3>메모</h3>
+  <div id="noteQuote" style="font-family:var(--serif);font-size:14px;line-height:1.6;color:var(--muted);border-left:3px solid var(--brass);padding-left:12px;margin-bottom:18px;max-height:22vh;overflow-y:auto"></div>
+  <div class="field"><textarea id="noteText" placeholder="이 부분에 대한 생각을 적어 두세요"></textarea></div>
+  <div class="field"><label>색</label><div class="palette" id="noteColors"></div></div>
+  <div class="actions">
+    <button class="ghost danger" id="noteDel" style="flex:1">삭제</button>
+    <button class="primary" id="noteSave" style="flex:2">저장</button>
+  </div>
+  <button class="ghost" id="noteClose" style="width:100%;margin-top:10px">닫기</button>
+</div></div>
+
+<!-- 분류 관리 -->
+<div class="sheet" id="sheetCats"><div class="box">
+  <h3>분류 관리</h3>
+  <div id="catList"></div>
+  <button class="ghost" id="catAdd" style="width:100%;margin-top:16px">분류 추가</button>
+  <button class="ghost" id="catClose" style="width:100%;margin-top:10px">닫기</button>
+</div></div>
+
+<!-- 분류 편집 -->
+<div class="sheet" id="sheetCatEdit"><div class="box">
+  <h3 id="ceTitle">분류 추가</h3>
+  <div class="field"><label>이름</label><input id="ceName" placeholder="예: 조직신학"></div>
+  <div class="field"><label>색</label><div class="palette" id="ceColors"></div></div>
+  <div class="field"><label>자동 분류에 쓸 단어 (쉼표로 구분, 비워도 됩니다)</label>
+    <input id="ceKw" placeholder="예: 조직신학, systematic, dogmatic">
+    <div class="hint">파일명에 이 단어가 들어 있으면 이 분류로 자동 지정됩니다.</div></div>
+  <div class="actions">
+    <button class="ghost danger" id="ceDel" style="flex:1">삭제</button>
+    <button class="primary" id="ceSave" style="flex:2">저장</button>
+  </div>
+  <button class="ghost" id="ceCancel" style="width:100%;margin-top:10px">취소</button>
+</div></div>
+
+<!-- 설정 -->
 <div class="sheet" id="sheetSet"><div class="box">
   <h3>설정</h3>
-  <div class="field"><label>연결된 계정</label><div id="setAcct" style="color:var(--muted);font-size:13.5px">-</div></div>
+  <button class="ghost" id="setCats" style="width:100%;margin-bottom:18px">분류 관리</button>
   <div class="field"><label>책 폴더 ID</label><input id="setFid"></div>
   <div class="field"><label>클라이언트 ID</label><input id="setCid"></div>
-  <div class="actions" style="flex-direction:column">
-    <button class="primary" id="setSave" style="width:100%">저장하고 다시 읽기</button>
-    <button class="ghost" id="setClearCache" style="width:100%;margin-top:10px">받아둔 책 파일 비우기</button>
-    <button class="ghost" id="setOut" style="width:100%;margin-top:10px">연결 해제</button>
-  </div>
+  <button class="primary" id="setSave" style="width:100%">저장하고 다시 읽기</button>
+  <button class="ghost" id="setClearCache" style="width:100%;margin-top:10px">받아둔 책 파일 비우기</button>
+  <button class="ghost" id="setOut" style="width:100%;margin-top:10px">연결 해제</button>
   <button class="ghost" id="setClose" style="width:100%;margin-top:18px">닫기</button>
 </div></div>
 
@@ -309,596 +319,886 @@ details.help code{background:#151A20;padding:1px 5px;border-radius:4px;color:var
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>
-/* ═══════════════════════════════════════════════
-   서재 · 1단계
-   드라이브 연결 → EPUB 목록 → 읽기 → 위치 동기화
-   ═══════════════════════════════════════════════ */
+/* ════════════════════════════════════════════
+   서재 · 2단계
+   EPUB + PDF / 하이라이트·밑줄·메모 / 책갈피 / 분류 관리
+   ════════════════════════════════════════════ */
 
-const SCOPES = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.appdata';
-const STATE_FILE = 'seojae-state.json';
+const SCOPES='https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.appdata';
+const STATE_FILE='seojae-state.json';
+const DEFAULT_CID='176016755027-u2v546hup548s1lg6j99023u8n2d6e0i.apps.googleusercontent.com';
+const DEFAULT_FID='1RqBOCgukIDMIHXjQ0u0ceOxQDrsbH8rw';
 
-/* 미리 채워 둔 값 — 나중에 바꾸시려면 설정 화면에서 고치면 됩니다 */
-const DEFAULT_CID = '176016755027-u2v546hup548s1lg6j99023u8n2d6e0i.apps.googleusercontent.com';
-const DEFAULT_FID = '1RqBOCgukIDMIHXjQ0u0ceOxQDrsbH8rw';
+if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
-const CATS = [
-  {id:'comm', name:'성경주석', color:'var(--c-comm)',
-   kw:['주석','강해','commentary','exegetical','wbc','nicnt','nicot','nigtc','becnt','icc','pillar','word biblical','anchor bible','틴델','tyndale']},
-  {id:'theo', name:'신학', color:'var(--c-theo)',
-   kw:['신학','theology','theological','doctrine','dogmatic','조직신학','교의','systematic','기독론','구원론','교회론','변증']},
-  {id:'serm', name:'설교', color:'var(--c-serm)',
-   kw:['설교','sermon','preaching','강단','homilet','메시지']},
-  {id:'past', name:'목회·사역', color:'var(--c-past)',
-   kw:['목회','사역','ministry','pastoral','리더십','leadership','제자훈련','church growth','교육','상담']},
-  {id:'devo', name:'영성·경건', color:'var(--c-devo)',
-   kw:['영성','경건','묵상','기도','devotional','spiritual','prayer','qt','큐티']},
-  {id:'gen',  name:'일반', color:'var(--c-gen)', kw:[]}
+const PALETTE=['#6E8FB8','#8A7BB8','#C8A45C','#6FA58C','#B87B8A','#7E8A97','#C97B54','#5FA3B5','#A8B86E','#B8628A'];
+const MARK_COLORS=['#F2D06B','#9BD4A0','#8FBCE8','#E8A0B4'];
+
+const DEFAULT_CATS=[
+  {id:'comm',name:'성경주석',color:'#6E8FB8',kw:['주석','강해','commentary','exegetical','wbc','nicnt','nicot','nigtc','becnt','icc','pillar','word biblical','anchor bible','tyndale','틴델']},
+  {id:'theo',name:'신학',color:'#8A7BB8',kw:['신학','theology','theological','doctrine','dogmatic','조직신학','교의','systematic','기독론','구원론','교회론','변증']},
+  {id:'serm',name:'설교',color:'#C8A45C',kw:['설교','sermon','preaching','강단','homilet']},
+  {id:'past',name:'목회·사역',color:'#6FA58C',kw:['목회','사역','ministry','pastoral','리더십','leadership','제자훈련','상담']},
+  {id:'devo',name:'영성·경건',color:'#B87B8A',kw:['영성','경건','묵상','기도','devotional','spiritual','prayer','큐티']},
+  {id:'gen', name:'일반', color:'#7E8A97',kw:[]}
 ];
-const catOf = id => CATS.find(c=>c.id===id) || CATS[CATS.length-1];
 
-/* ---------- 작은 도구들 ---------- */
-const $ = s => document.querySelector(s);
-const $$ = s => [...document.querySelectorAll(s)];
+/* ---------- 도구 ---------- */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 let toastT;
-function toast(msg){
-  const t=$('#toast'); t.textContent=msg; t.classList.add('on');
-  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),2600);
-}
-function show(id){ $$('.screen').forEach(s=>s.classList.toggle('on', s.id===id)); }
-function openSheet(id){ $('#'+id).classList.add('on'); }
-function closeSheet(id){ $('#'+id).classList.remove('on'); }
-$$('.sheet').forEach(sh => sh.addEventListener('click', e=>{ if(e.target===sh) sh.classList.remove('on'); }));
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),2600);}
+function show(id){$$('.screen').forEach(s=>s.classList.toggle('on',s.id===id));}
+function openSheet(id){$('#'+id).classList.add('on');}
+function closeSheet(id){$('#'+id).classList.remove('on');}
+$$('.sheet').forEach(sh=>sh.addEventListener('click',e=>{if(e.target===sh)sh.classList.remove('on');}));
+function esc(s){return(s||'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+const uid=()=>Math.random().toString(36).slice(2,10);
 
 /* ---------- 설정 저장 ---------- */
-const cfg = {
-  get cid(){ return localStorage.getItem('cid')||DEFAULT_CID; }, set cid(v){ localStorage.setItem('cid',v); },
-  get fid(){ return localStorage.getItem('fid')||DEFAULT_FID; }, set fid(v){ localStorage.setItem('fid',v); },
-  get view(){ try{ return JSON.parse(localStorage.getItem('view'))||{}; }catch(e){ return {}; } },
-  set view(v){ localStorage.setItem('view', JSON.stringify(v)); }
+const cfg={
+  get cid(){return localStorage.getItem('cid')||DEFAULT_CID;}, set cid(v){localStorage.setItem('cid',v);},
+  get fid(){return localStorage.getItem('fid')||DEFAULT_FID;}, set fid(v){localStorage.setItem('fid',v);},
+  get view(){try{return JSON.parse(localStorage.getItem('view'))||{};}catch(e){return{};}},
+  set view(v){localStorage.setItem('view',JSON.stringify(v));}
 };
-const view = Object.assign({theme:'paper', font:'serif', size:18, spread:'auto'}, cfg.view);
+const view=Object.assign({theme:'paper',font:'serif',size:18,spread:'auto',fit:'page'},cfg.view);
 
-/* ---------- IndexedDB (책 파일·위치표·표지 보관) ---------- */
+/* ---------- IndexedDB ---------- */
 let dbp;
 function db(){
-  if(dbp) return dbp;
-  dbp = new Promise((res,rej)=>{
-    const r = indexedDB.open('seojae', 1);
-    r.onupgradeneeded = () => {
-      const d = r.result;
-      ['files','locs','covers'].forEach(n=>{ if(!d.objectStoreNames.contains(n)) d.createObjectStore(n); });
-    };
+  if(dbp)return dbp;
+  dbp=new Promise((res,rej)=>{
+    const r=indexedDB.open('seojae',1);
+    r.onupgradeneeded=()=>{const d=r.result;['files','locs','covers'].forEach(n=>{if(!d.objectStoreNames.contains(n))d.createObjectStore(n);});};
     r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
   });
   return dbp;
 }
-async function idbGet(store,key){
-  const d=await db();
-  return new Promise((res,rej)=>{ const t=d.transaction(store).objectStore(store).get(key);
-    t.onsuccess=()=>res(t.result); t.onerror=()=>rej(t.error); });
-}
-async function idbPut(store,key,val){
-  const d=await db();
-  return new Promise((res,rej)=>{ const t=d.transaction(store,'readwrite').objectStore(store).put(val,key);
-    t.onsuccess=()=>res(); t.onerror=()=>rej(t.error); });
-}
-async function idbClear(store){
-  const d=await db();
-  return new Promise((res,rej)=>{ const t=d.transaction(store,'readwrite').objectStore(store).clear();
-    t.onsuccess=()=>res(); t.onerror=()=>rej(t.error); });
-}
+async function idbGet(s,k){const d=await db();return new Promise((res,rej)=>{const t=d.transaction(s).objectStore(s).get(k);t.onsuccess=()=>res(t.result);t.onerror=()=>rej(t.error);});}
+async function idbPut(s,k,v){const d=await db();return new Promise((res,rej)=>{const t=d.transaction(s,'readwrite').objectStore(s).put(v,k);t.onsuccess=()=>res();t.onerror=()=>rej(t.error);});}
+async function idbClear(s){const d=await db();return new Promise((res,rej)=>{const t=d.transaction(s,'readwrite').objectStore(s).clear();t.onsuccess=()=>res();t.onerror=()=>rej(t.error);});}
 
 /* ---------- 구글 로그인 ---------- */
-let tokenClient=null, accessToken=null, tokenExp=0, account='';
-function initToken(){
-  tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: cfg.cid, scope: SCOPES, callback: ()=>{}
-  });
-}
+let tokenClient=null,accessToken=null,tokenExp=0;
+function initToken(){tokenClient=google.accounts.oauth2.initTokenClient({client_id:cfg.cid,scope:SCOPES,callback:()=>{}});}
 function getToken({interactive=true}={}){
   return new Promise((res,rej)=>{
-    if(accessToken && Date.now() < tokenExp - 60000) return res(accessToken);
-    if(!tokenClient) initToken();
-    tokenClient.callback = r => {
-      if(r.error) return rej(new Error(r.error));
-      accessToken = r.access_token;
-      tokenExp = Date.now() + (r.expires_in||3600)*1000;
-      res(accessToken);
+    if(accessToken&&Date.now()<tokenExp-60000)return res(accessToken);
+    if(!tokenClient)initToken();
+    tokenClient.callback=r=>{
+      if(r.error)return rej(new Error(r.error));
+      accessToken=r.access_token; tokenExp=Date.now()+(r.expires_in||3600)*1000; res(accessToken);
     };
-    try{ tokenClient.requestAccessToken({prompt: interactive ? '' : 'none'}); }
-    catch(e){ rej(e); }
+    try{tokenClient.requestAccessToken({prompt:interactive?'':'none'});}catch(e){rej(e);}
   });
 }
-async function api(url, opts={}){
-  const tk = await getToken();
-  const r = await fetch(url, {...opts, headers:{...(opts.headers||{}), Authorization:'Bearer '+tk}});
-  if(r.status===401){ accessToken=null; const tk2=await getToken();
-    return fetch(url, {...opts, headers:{...(opts.headers||{}), Authorization:'Bearer '+tk2}});
-  }
+async function api(url,opts={}){
+  const tk=await getToken();
+  const r=await fetch(url,{...opts,headers:{...(opts.headers||{}),Authorization:'Bearer '+tk}});
+  if(r.status===401){accessToken=null;const t2=await getToken();return fetch(url,{...opts,headers:{...(opts.headers||{}),Authorization:'Bearer '+t2}});}
   return r;
 }
 
-/* ---------- 파일명에서 제목·저자·분류 추측 ---------- */
-
-/* 파일명 조각 중 버릴 것들 — 해시값, ISBN, 사이트 이름, 파일 형식 표시 */
-const JUNK = [
-  /^[0-9a-f]{32}$/i,                                  // 32자리 해시
-  /^[0-9a-f]{40}$/i,
-  /anna\s*['’`]?\s*s?\s*archive/i,                    // Anna's Archive
-  /z[-\s]?lib(rary)?/i,                               // Z-Library, z-lib.org
-  /libgen|library\s*genesis/i,
-  /oceanofpdf|epubshare|bookfi|b-ok\b/i,
-  /^[\d][\d\s\-xX]{8,19}$/,                           // ISBN 같은 긴 숫자
-  /^[a-z0-9][a-z0-9\-]*\.(com|org|net|io|ru|se|is|to|cc)$/i,   // 도메인 주소
-  /^(epub|pdf|mobi|azw3|retail|scan|ocr|calibre|v\d+(\.\d+)?)$/i
-];
-const isJunk = s => { const t=(s||'').trim(); return !t || JUNK.some(r=>r.test(t)); };
-
-/* 조각 하나를 다듬는다 — 중복 저자 표기 [성, 이름], (z-lib.org) 같은 꼬리표 제거 */
-function tidySeg(s){
-  return (s||'')
-    .replace(/\s*\[[^\]]*\]\s*/g, ' ')                                   // [Lloyd-Jones, D Martyn]
-    .replace(/\s*[(（][^)）]*(z-?lib|anna|archive|oceanof|libgen)[^)）]*[)）]/ig, '')
-    .replace(/\s{2,}/g, ' ')
-    .replace(/^[\s,;·・]+|[\s,;·・-]+$/g, '')
-    .trim();
-}
-
-function guessMeta(filename){
-  let base = filename.replace(/\.(epub|pdf)$/i,'').trim();
-  base = base.replace(/^\d{1,3}\s*[.\-_)\]]\s*/,'');       // 앞번호 01. 제거
-  base = base.replace(/[_]+/g,' ').replace(/\s{2,}/g,' ').trim();
-  // (Z-Library), (z-lib.org) 같은 꼬리표는 제목 판단 전에 먼저 떼어낸다
-  base = base.replace(/\s*[(（\[][^)）\]]*(z-?lib|anna\s*['’`]?\s*s?\s*archive|oceanof|libgen|b-ok)[^)）\]]*[)）\]]/ig,'').trim();
-
-  let title = base, author = '', extra = '';
-
-  if(/\s*--\s*/.test(base)){
-    /* Anna's Archive 형식: 제목 -- 저자 -- 시리즈 -- 출판사 -- ISBN -- 해시 -- 사이트 */
-    let segs = base.split(/\s*--\s*/).map(tidySeg).filter(s => s && !isJunk(s));
-    if(segs.length){
-      title  = segs[0];
-      author = segs[1] || '';
-      extra  = segs.slice(2).join(' · ');
-    }
-  }else{
-    let m;
-    if((m = base.match(/^\[([^\]]{1,30})\]\s*(.+)$/))){ author=m[1]; title=m[2]; }
-    else if((m = base.match(/^(.+?)\s+[-–—]\s+(.+)$/))){
-      const a=m[1].trim(), b=m[2].trim();
-      if(a.length<=22 && b.length>=a.length){ author=a; title=b; } else { title=a; author=b.length<=22?b:''; }
-    }
-    else if((m = base.match(/^(.+?)\s*[(（]([^)）]{2,25})[)）]\s*$/))){
-      const inner=m[2];
-      if(!/판|쇄|권|vol|edition|개정/i.test(inner)){ title=m[1].trim(); author=inner.trim(); }
-    }
-    title = tidySeg(title); author = tidySeg(author);
-  }
-
-  if(isJunk(author)) author = '';
-
-  const low = filename.toLowerCase();
-  let cat = 'gen';
-  for(const c of CATS){ if(c.kw.some(k=>low.includes(k))){ cat=c.id; break; } }
-  return {title:title.trim()||base, author:author.trim(), extra, cat};
-}
-
-/* ---------- 상태(진행률·메타 수정) ---------- */
-let state = {books:{}, updated:0};
-let stateFileId = null;
-function localState(){ try{ return JSON.parse(localStorage.getItem('state'))||{books:{},updated:0}; }catch(e){ return {books:{},updated:0}; } }
-function saveLocal(){ localStorage.setItem('state', JSON.stringify(state)); }
+/* ---------- 상태 ---------- */
+let state={books:{},cats:null,updated:0}, stateFileId=null;
+function localState(){try{return JSON.parse(localStorage.getItem('state'))||{books:{},cats:null,updated:0};}catch(e){return{books:{},cats:null,updated:0};}}
+function saveLocal(){localStorage.setItem('state',JSON.stringify(state));}
+function cats(){ if(!state.cats||!state.cats.length) state.cats=JSON.parse(JSON.stringify(DEFAULT_CATS)); return state.cats; }
+function catOf(id){return cats().find(c=>c.id===id)||cats()[cats().length-1];}
 
 async function loadState(){
-  state = localState();
+  state=localState();
   try{
-    const q = encodeURIComponent(`name='${STATE_FILE}'`);
-    const r = await api(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${q}&fields=files(id)`);
-    const j = await r.json();
-    if(j.files && j.files.length){
-      stateFileId = j.files[0].id;
-      const rr = await api(`https://www.googleapis.com/drive/v3/files/${stateFileId}?alt=media`);
-      const remote = await rr.json();
-      // 책마다 더 최근에 고친 쪽을 채택
-      const merged = {books:{}, updated:Math.max(state.updated||0, remote.updated||0)};
-      const ids = new Set([...Object.keys(state.books||{}), ...Object.keys(remote.books||{})]);
+    const q=encodeURIComponent(`name='${STATE_FILE}'`);
+    const r=await api(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${q}&fields=files(id)`);
+    const j=await r.json();
+    if(j.files&&j.files.length){
+      stateFileId=j.files[0].id;
+      const rr=await api(`https://www.googleapis.com/drive/v3/files/${stateFileId}?alt=media`);
+      const rem=await rr.json();
+      const merged={books:{},cats:null,updated:Math.max(state.updated||0,rem.updated||0)};
+      const ids=new Set([...Object.keys(state.books||{}),...Object.keys(rem.books||{})]);
       ids.forEach(id=>{
-        const a=(state.books||{})[id], b=(remote.books||{})[id];
-        merged.books[id] = (!a) ? b : (!b) ? a : ((a.at||0) >= (b.at||0) ? a : b);
+        const a=(state.books||{})[id],b=(rem.books||{})[id];
+        merged.books[id]=!a?b:!b?a:((a.at||0)>=(b.at||0)?a:b);
       });
-      state = merged; saveLocal();
+      merged.cats=((state.updated||0)>=(rem.updated||0)?state.cats:rem.cats)||state.cats||rem.cats;
+      state=merged; cats(); saveLocal();
     }
-  }catch(e){ console.warn('상태 불러오기 실패', e); }
+  }catch(e){console.warn('상태 불러오기 실패',e);}
+  cats();
 }
-
-let syncT=null, syncing=false;
-function queueSync(){ clearTimeout(syncT); syncT=setTimeout(syncState, 4000); }
+let syncT,syncing=false;
+function queueSync(){clearTimeout(syncT);syncT=setTimeout(syncState,4000);}
 async function syncState(){
-  if(syncing) return; syncing=true;
+  if(syncing)return; syncing=true;
   try{
-    state.updated = Date.now();
-    const body = new Blob([JSON.stringify(state)], {type:'application/json'});
+    state.updated=Date.now();
+    const body=new Blob([JSON.stringify(state)],{type:'application/json'});
     if(stateFileId){
-      await api(`https://www.googleapis.com/upload/drive/v3/files/${stateFileId}?uploadType=media`, {method:'PATCH', body});
+      await api(`https://www.googleapis.com/upload/drive/v3/files/${stateFileId}?uploadType=media`,{method:'PATCH',body});
     }else{
-      const meta = new Blob([JSON.stringify({name:STATE_FILE, parents:['appDataFolder']})], {type:'application/json'});
-      const form = new FormData(); form.append('metadata', meta); form.append('file', body);
-      const r = await api('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {method:'POST', body:form});
-      const j = await r.json(); stateFileId = j.id;
+      const meta=new Blob([JSON.stringify({name:STATE_FILE,parents:['appDataFolder']})],{type:'application/json'});
+      const form=new FormData();form.append('metadata',meta);form.append('file',body);
+      const r=await api('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',body:form});
+      stateFileId=(await r.json()).id;
     }
-  }catch(e){ console.warn('동기화 실패', e); }
-  finally{ syncing=false; }
+  }catch(e){console.warn('동기화 실패',e);}finally{syncing=false;}
 }
-window.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden'){ saveLocal(); syncState(); } });
+window.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){saveLocal();syncState();}});
+function bookState(id){return state.books[id]||(state.books[id]={});}
+function touch(id){const s=bookState(id);s.at=Date.now();saveLocal();queueSync();}
 
-/* ---------- 드라이브에서 책 목록 ---------- */
-let books = [], pdfCount = 0;
-function cachedList(){ try{ return JSON.parse(localStorage.getItem('files'))||null; }catch(e){ return null; } }
-
-async function scanDrive(){
-  const st=$('#status'); st.hidden=false; st.textContent='드라이브를 읽는 중…';
-  const found=[]; let pdfs=0;
-  const queue=[cfg.fid]; const seen=new Set();
-  while(queue.length){
-    const folder = queue.shift();
-    if(seen.has(folder)) continue; seen.add(folder);
-    let pageToken='';
-    do{
-      const q = encodeURIComponent(`'${folder}' in parents and trashed=false`);
-      const url = `https://www.googleapis.com/drive/v3/files?q=${q}&pageSize=1000&fields=nextPageToken,files(id,name,mimeType,size,modifiedTime)`
-                + (pageToken?`&pageToken=${pageToken}`:'');
-      const r = await api(url);
-      if(!r.ok){ st.textContent='폴더를 읽지 못했습니다. 폴더 ID를 확인해 주세요.'; return; }
-      const j = await r.json();
-      (j.files||[]).forEach(f=>{
-        if(f.mimeType==='application/vnd.google-apps.folder') queue.push(f.id);
-        else if(/\.epub$/i.test(f.name)) found.push({id:f.id, name:f.name, size:+f.size||0, mt:f.modifiedTime});
-        else if(/\.pdf$/i.test(f.name)) pdfs++;
-      });
-      pageToken = j.nextPageToken||'';
-      st.textContent = `드라이브를 읽는 중… ${found.length}권`;
-    }while(pageToken);
+/* ---------- 파일명 해석 ---------- */
+const JUNK=[
+  /^[0-9a-f]{32}$/i,/^[0-9a-f]{40}$/i,
+  /anna\s*['’`]?\s*s?\s*archive/i,/z[-\s]?lib(rary)?/i,/libgen|library\s*genesis/i,
+  /oceanofpdf|epubshare|bookfi|b-ok\b/i,
+  /^[\d][\d\s\-xX]{8,19}$/,
+  /^[a-z0-9][a-z0-9\-]*\.(com|org|net|io|ru|se|is|to|cc)$/i,
+  /^(epub|pdf|mobi|azw3|retail|scan|ocr|calibre|v\d+(\.\d+)?)$/i
+];
+const isJunk=s=>{const t=(s||'').trim();return !t||JUNK.some(r=>r.test(t));};
+function tidySeg(s){
+  return (s||'')
+    .replace(/\s*\[[^\]]*\]\s*/g,' ')
+    .replace(/\s*[(（][^)）]*(z-?lib|anna|archive|oceanof|libgen)[^)）]*[)）]/ig,'')
+    .replace(/\s{2,}/g,' ').replace(/^[\s,;·・]+|[\s,;·・-]+$/g,'').trim();
+}
+function guessMeta(filename){
+  let base=filename.replace(/\.(epub|pdf)$/i,'').trim();
+  base=base.replace(/^\d{1,3}\s*[.\-_)\]]\s*/,'');
+  base=base.replace(/[_]+/g,' ').replace(/\s{2,}/g,' ').trim();
+  base=base.replace(/\s*[(（\[][^)）\]]*(z-?lib|anna\s*['’`]?\s*s?\s*archive|oceanof|libgen|b-ok)[^)）\]]*[)）\]]/ig,'').trim();
+  let title=base,author='',extra='';
+  if(/\s*--\s*/.test(base)){
+    let segs=base.split(/\s*--\s*/).map(tidySeg).filter(s=>s&&!isJunk(s));
+    if(segs.length){title=segs[0];author=segs[1]||'';extra=segs.slice(2).join(' · ');}
+  }else{
+    let m;
+    if((m=base.match(/^\[([^\]]{1,30})\]\s*(.+)$/))){author=m[1];title=m[2];}
+    else if((m=base.match(/^(.+?)\s+[-–—]\s+(.+)$/))){
+      const a=m[1].trim(),b=m[2].trim();
+      if(a.length<=22&&b.length>=a.length){author=a;title=b;}else{title=a;author=b.length<=22?b:'';}
+    }else if((m=base.match(/^(.+?)\s*[(（]([^)）]{2,25})[)）]\s*$/))){
+      const inner=m[2];
+      if(!/판|쇄|권|vol|edition|개정/i.test(inner)){title=m[1].trim();author=inner.trim();}
+    }
+    title=tidySeg(title);author=tidySeg(author);
   }
-  books = found; pdfCount = pdfs;
-  localStorage.setItem('files', JSON.stringify({books, pdfCount, at:Date.now()}));
-  st.hidden = true;
-  renderShelf();
-  toast(pdfs ? `EPUB ${found.length}권을 찾았습니다 (PDF ${pdfs}개는 다음 단계)` : `${found.length}권을 찾았습니다`);
+  if(isJunk(author))author='';
+  const low=filename.toLowerCase();
+  let cat='gen';
+  for(const c of cats()){ if((c.kw||[]).some(k=>k&&low.includes(String(k).toLowerCase()))){cat=c.id;break;} }
+  return {title:title.trim()||base,author:author.trim(),extra,cat};
 }
 
-/* ---------- 서재 그리기 ---------- */
-let filter='all', term='';
+/* ---------- 드라이브 훑기 ---------- */
+let books=[];
+function cachedList(){try{return JSON.parse(localStorage.getItem('files2'))||null;}catch(e){return null;}}
+async function scanDrive(){
+  const st=$('#status');st.hidden=false;st.textContent='드라이브를 읽는 중…';
+  const found=[];const queue=[cfg.fid];const seen=new Set();
+  while(queue.length){
+    const folder=queue.shift();
+    if(seen.has(folder))continue;seen.add(folder);
+    let pt='';
+    do{
+      const q=encodeURIComponent(`'${folder}' in parents and trashed=false`);
+      const url=`https://www.googleapis.com/drive/v3/files?q=${q}&pageSize=1000&fields=nextPageToken,files(id,name,mimeType,size,modifiedTime)`+(pt?`&pageToken=${pt}`:'');
+      const r=await api(url);
+      if(!r.ok){st.textContent='폴더를 읽지 못했습니다. 폴더 ID를 확인해 주세요.';return;}
+      const j=await r.json();
+      (j.files||[]).forEach(f=>{
+        if(f.mimeType==='application/vnd.google-apps.folder')queue.push(f.id);
+        else if(/\.epub$/i.test(f.name))found.push({id:f.id,name:f.name,kind:'epub',size:+f.size||0});
+        else if(/\.pdf$/i.test(f.name))found.push({id:f.id,name:f.name,kind:'pdf',size:+f.size||0});
+      });
+      pt=j.nextPageToken||'';
+      st.textContent=`드라이브를 읽는 중… ${found.length}권`;
+    }while(pt);
+  }
+  books=found;
+  localStorage.setItem('files2',JSON.stringify({books,at:Date.now()}));
+  st.hidden=true;renderShelf();
+  const ep=found.filter(b=>b.kind==='epub').length;
+  toast(`${found.length}권 (EPUB ${ep}, PDF ${found.length-ep})`);
+}
+
+/* ---------- 서재 ---------- */
+let filter='all',term='';
 function bookInfo(b){
-  const saved = state.books[b.id] || {};
-  const g = guessMeta(b.name);
-  return {
-    title: saved.title || g.title,
-    author: saved.author || g.author,
-    extra: g.extra || '',
-    cat: saved.cat || g.cat,
-    pct: saved.pct || 0,
-    cfi: saved.cfi || null,
-    at: saved.at || 0
-  };
+  const s=state.books[b.id]||{},g=guessMeta(b.name);
+  return {title:s.title||g.title,author:s.author||g.author,extra:g.extra||'',cat:s.cat||g.cat,
+          pct:s.pct||0,cfi:s.cfi||null,page:s.page||1,at:s.at||0,
+          marks:s.marks||[],bmarks:s.bmarks||[]};
 }
 function renderFilters(){
-  const counts = {}; books.forEach(b=>{ const c=bookInfo(b).cat; counts[c]=(counts[c]||0)+1; });
-  const el=$('#filters'); el.innerHTML='';
-  const mk=(id,name,color,n)=>{
+  const counts={};books.forEach(b=>{const c=bookInfo(b).cat;counts[c]=(counts[c]||0)+1;});
+  const el=$('#filters');el.innerHTML='';
+  const mk=(id,name,color,n,cls)=>{
     const b=document.createElement('button');
-    b.className='chip'+(filter===id?' sel':'');
-    b.innerHTML = (color?`<span class="dot" style="color:${color}"></span>`:'') + name + (n!=null?` ${n}`:'');
-    b.onclick=()=>{ filter=id; renderFilters(); renderShelf(); };
+    b.className='chip'+(filter===id?' sel':'')+(cls?' '+cls:'');
+    b.innerHTML=(color?`<span class="dot" style="color:${color}"></span>`:'')+esc(name)+(n!=null?` ${n}`:'');
+    b.onclick=()=>{if(cls==='add'){openCats();return;}filter=id;renderFilters();renderShelf();};
     el.appendChild(b);
   };
   mk('all','전체',null,books.length);
-  mk('reading','읽는 중',null,books.filter(b=>{const p=bookInfo(b).pct; return p>0&&p<100;}).length);
-  CATS.forEach(c=>{ if(counts[c.id]) mk(c.id,c.name,c.color,counts[c.id]); });
+  mk('reading','읽는 중',null,books.filter(b=>{const p=bookInfo(b).pct;return p>0&&p<100;}).length);
+  mk('marked','표시한 책',null,books.filter(b=>{const i=bookInfo(b);return i.marks.length||i.bmarks.length;}).length);
+  cats().forEach(c=>{if(counts[c.id])mk(c.id,c.name,c.color,counts[c.id]);});
+  mk('__add','분류 관리',null,null,'add');
 }
 function renderShelf(){
   renderFilters();
-  const el=$('#shelf'); el.innerHTML='';
-  let list = books.map(b=>({b, i:bookInfo(b)}));
-  if(filter==='reading') list=list.filter(x=>x.i.pct>0 && x.i.pct<100);
-  else if(filter!=='all') list=list.filter(x=>x.i.cat===filter);
-  if(term){
-    const t=term.toLowerCase();
-    list=list.filter(x=>(x.i.title+' '+x.i.author+' '+x.b.name).toLowerCase().includes(t));
-  }
-  list.sort((a,c)=>{
-    if(a.i.at!==c.i.at) return c.i.at-a.i.at;              // 최근에 읽은 책 먼저
-    return a.i.title.localeCompare(c.i.title,'ko');
-  });
+  const el=$('#shelf');el.innerHTML='';
+  let list=books.map(b=>({b,i:bookInfo(b)}));
+  if(filter==='reading')list=list.filter(x=>x.i.pct>0&&x.i.pct<100);
+  else if(filter==='marked')list=list.filter(x=>x.i.marks.length||x.i.bmarks.length);
+  else if(filter!=='all')list=list.filter(x=>x.i.cat===filter);
+  if(term){const t=term.toLowerCase();list=list.filter(x=>(x.i.title+' '+x.i.author+' '+x.b.name).toLowerCase().includes(t));}
+  list.sort((a,c)=>a.i.at!==c.i.at?c.i.at-a.i.at:a.i.title.localeCompare(c.i.title,'ko'));
   if(!list.length){
-    el.innerHTML = `<div class="empty"><b>${books.length? '해당하는 책이 없습니다':'아직 책이 없습니다'}</b>${
-      books.length? '다른 분류나 검색어로 찾아보세요.' : '드라이브 폴더에 EPUB 파일을 넣고 새로고침을 눌러 주세요.'}</div>`;
+    el.innerHTML=`<div class="empty"><b>${books.length?'해당하는 책이 없습니다':'아직 책이 없습니다'}</b>${books.length?'다른 분류나 검색어로 찾아보세요.':'드라이브 폴더에 책을 넣고 새로고침을 눌러 주세요.'}</div>`;
     return;
   }
   const frag=document.createDocumentFragment();
   list.forEach(({b,i})=>{
     const c=catOf(i.cat);
-    const sub = [i.author||'저자 미상', i.extra, c.name].filter(Boolean).join(' · ');
-    const row=document.createElement('button');
-    row.className='row';
-    row.innerHTML = `
+    const bits=[];
+    if(i.marks.length)bits.push(`하이라이트 ${i.marks.length}`);
+    if(i.bmarks.length)bits.push(`책갈피 ${i.bmarks.length}`);
+    const sub=[i.author||'저자 미상',i.extra,c.name,bits.join(' · ')].filter(Boolean).join(' · ');
+    const row=document.createElement('button');row.className='row';
+    row.innerHTML=`
       <span class="spine" style="--sp:${c.color};--fill:${i.pct}%"><i></i></span>
       <span class="meta">
         <span class="t">${esc(i.title)}</span>
-        <span class="a">${esc(sub)}</span>
+        <span class="a">${b.kind==='pdf'?'<span class="tag">PDF</span>':''}${esc(sub)}</span>
       </span>
       <span class="pct ${i.pct>=100?'done':''}">${i.pct?i.pct+'%':''}</span>`;
     row.onclick=()=>openBook(b);
     let press;
-    const startPress=()=>{ press=setTimeout(()=>editBook(b), 550); };
-    const endPress=()=>clearTimeout(press);
-    row.addEventListener('touchstart',startPress,{passive:true});
-    row.addEventListener('touchend',endPress); row.addEventListener('touchmove',endPress);
-    row.addEventListener('contextmenu',e=>{ e.preventDefault(); editBook(b); });
+    row.addEventListener('touchstart',()=>{press=setTimeout(()=>editBook(b),550);},{passive:true});
+    ['touchend','touchmove'].forEach(ev=>row.addEventListener(ev,()=>clearTimeout(press)));
+    row.addEventListener('contextmenu',e=>{e.preventDefault();editBook(b);});
     frag.appendChild(row);
   });
   el.appendChild(frag);
 }
-function esc(s){ return (s||'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
 
-/* ---------- 책 정보 고치기 ---------- */
+/* ---------- 책 정보 ---------- */
 let editing=null;
 function editBook(b){
-  editing=b; const i=bookInfo(b);
-  $('#ebTitle').value=i.title; $('#ebAuthor').value=i.author;
-  const sel=$('#ebCat'); sel.innerHTML='';
-  CATS.forEach(c=>{ const o=document.createElement('option'); o.value=c.id; o.textContent=c.name; sel.appendChild(o); });
-  sel.value=i.cat;
-  openSheet('sheetBook');
+  editing=b;const i=bookInfo(b);
+  $('#ebTitle').value=i.title;$('#ebAuthor').value=i.author;
+  const sel=$('#ebCat');sel.innerHTML='';
+  cats().forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.name;sel.appendChild(o);});
+  sel.value=i.cat;openSheet('sheetBook');
 }
 $('#ebCancel').onclick=()=>closeSheet('sheetBook');
 $('#ebSave').onclick=()=>{
-  const s = state.books[editing.id] || (state.books[editing.id]={});
-  s.title=$('#ebTitle').value.trim(); s.author=$('#ebAuthor').value.trim(); s.cat=$('#ebCat').value;
-  s.at=Date.now(); saveLocal(); queueSync(); closeSheet('sheetBook'); renderShelf();
+  const s=bookState(editing.id);
+  s.title=$('#ebTitle').value.trim();s.author=$('#ebAuthor').value.trim();s.cat=$('#ebCat').value;
+  touch(editing.id);closeSheet('sheetBook');renderShelf();
 };
 
-/* ---------- 책 열기 ---------- */
-let book=null, rendition=null, current=null, lastCfi=null;
+/* ---------- 분류 관리 ---------- */
+let ceEditing=null,ceColor=PALETTE[0];
+function openCats(){renderCatList();openSheet('sheetCats');}
+function renderCatList(){
+  const counts={};books.forEach(b=>{const c=bookInfo(b).cat;counts[c]=(counts[c]||0)+1;});
+  const el=$('#catList');el.innerHTML='';
+  cats().forEach(c=>{
+    const row=document.createElement('div');row.className='catrow';
+    row.innerHTML=`<span class="sw" style="background:${c.color}"></span>
+      <span class="nm">${esc(c.name)}</span>
+      <span class="cnt">${counts[c.id]||0}권</span>`;
+    const edit=document.createElement('button');edit.className='ghost';edit.style.padding='6px 10px';edit.textContent='편집';
+    edit.onclick=()=>openCatEdit(c);
+    row.appendChild(edit);el.appendChild(row);
+  });
+}
+function paletteInto(el,cur,pick){
+  el.innerHTML='';
+  PALETTE.forEach(p=>{
+    const b=document.createElement('button');b.style.background=p;
+    if(p.toLowerCase()===String(cur).toLowerCase())b.classList.add('sel');
+    b.onclick=()=>{pick(p);[...el.children].forEach(x=>x.classList.remove('sel'));b.classList.add('sel');};
+    el.appendChild(b);
+  });
+}
+function openCatEdit(c){
+  ceEditing=c||null;
+  $('#ceTitle').textContent=c?'분류 편집':'분류 추가';
+  $('#ceName').value=c?c.name:'';
+  $('#ceKw').value=c?(c.kw||[]).join(', '):'';
+  ceColor=c?c.color:PALETTE[Math.floor(Math.random()*PALETTE.length)];
+  paletteInto($('#ceColors'),ceColor,v=>ceColor=v);
+  $('#ceDel').style.display=(c&&c.id!=='gen')?'':'none';
+  openSheet('sheetCatEdit');
+}
+$('#catAdd').onclick=()=>openCatEdit(null);
+$('#catClose').onclick=()=>closeSheet('sheetCats');
+$('#ceCancel').onclick=()=>closeSheet('sheetCatEdit');
+$('#ceSave').onclick=()=>{
+  const name=$('#ceName').value.trim();
+  if(!name)return toast('이름을 입력해 주세요');
+  const kw=$('#ceKw').value.split(',').map(s=>s.trim()).filter(Boolean);
+  if(ceEditing){Object.assign(ceEditing,{name,color:ceColor,kw});}
+  else{cats().splice(cats().length-1,0,{id:'c_'+uid(),name,color:ceColor,kw});}
+  state.updated=Date.now();saveLocal();queueSync();
+  closeSheet('sheetCatEdit');renderCatList();renderShelf();
+};
+$('#ceDel').onclick=()=>{
+  if(!ceEditing)return;
+  const moved=books.filter(b=>bookInfo(b).cat===ceEditing.id);
+  moved.forEach(b=>{const s=bookState(b.id);s.cat='gen';});
+  state.cats=cats().filter(c=>c.id!==ceEditing.id);
+  state.updated=Date.now();saveLocal();queueSync();
+  closeSheet('sheetCatEdit');renderCatList();renderShelf();
+  toast(moved.length?`${moved.length}권을 일반으로 옮겼습니다`:'분류를 지웠습니다');
+};
+
+/* ════════ 읽기 ════════ */
+let current=null,kind=null;
+let book=null,rendition=null,lastCfi=null;         // EPUB
+let pdfDoc=null,pdfPage=1,pdfScale=1,pdfRendering=false;  // PDF
 
 async function fetchBook(b){
-  const cached = await idbGet('files', b.id);
-  if(cached) return cached;
-  $('#rload').textContent='책을 내려받는 중…';
-  const r = await api(`https://www.googleapis.com/drive/v3/files/${b.id}?alt=media`);
-  if(!r.ok) throw new Error('다운로드 실패');
-  const buf = await r.arrayBuffer();
-  try{ await idbPut('files', b.id, buf); }catch(e){ console.warn('캐시 저장 실패', e); }
+  const c=await idbGet('files',b.id);
+  if(c)return c;
+  const mb=b.size?(b.size/1048576).toFixed(1)+'MB ':'';
+  $('#rload').textContent=`책을 내려받는 중… ${mb}`;
+  const r=await api(`https://www.googleapis.com/drive/v3/files/${b.id}?alt=media`);
+  if(!r.ok)throw new Error('다운로드 실패');
+  const buf=await r.arrayBuffer();
+  try{await idbPut('files',b.id,buf);}catch(e){console.warn('캐시 저장 실패',e);}
   return buf;
 }
 
 async function openBook(b){
-  current=b; const i=bookInfo(b);
+  current=b;kind=b.kind;
+  const i=bookInfo(b);
   $('#rtitle').textContent=i.title;
-  $('#rload').style.display='grid'; $('#rload').textContent='책을 여는 중…';
-  $('#viewer').querySelectorAll(':scope > :not(#rload)').forEach(n=>n.remove());
-  show('reader'); applyTheme();
+  $('#rload').style.display='grid';$('#rload').textContent='책을 여는 중…';
+  $('#viewer').innerHTML='';$('#pdfWrap').classList.toggle('on',kind==='pdf');
+  $('#epubOnly').hidden=kind==='pdf';$('#pdfOnly').hidden=kind!=='pdf';
+  show('reader');applyTheme();showBars();
   try{
-    const buf = await fetchBook(b);
-    book = ePub(buf);
-    rendition = book.renderTo('viewer', {
-      width:'100%', height:'100%', flow:'paginated',
-      spread: view.spread, minSpreadWidth: 820, allowScriptedContent:false
-    });
-    registerThemes(); applyTypography();
-    hookContent();
-    await book.ready;
-    await rendition.display(i.cfi || undefined);
-
+    const buf=await fetchBook(b);
+    if(kind==='epub')await openEpub(buf,i); else await openPdf(buf,i);
     $('#rload').style.display='none';
-
-    // 진행률 계산용 위치표 (한 번 만들면 저장해 두고 재사용)
-    const key='loc:'+b.id;
-    const saved = await idbGet('locs', key);
-    if(saved){ book.locations.load(saved); updateProgress(lastCfi); }
-    else{
-      book.locations.generate(1400).then(async ()=>{
-        try{ await idbPut('locs', key, book.locations.save()); }catch(e){}
-        updateProgress(lastCfi);
-      });
-    }
-    buildToc();
-    saveCover(b.id);
+    updateBmIcon();
   }catch(e){
     console.error(e);
-    $('#rload').textContent='책을 열지 못했습니다. 파일이 손상되었을 수 있습니다.';
+    $('#rload').textContent='책을 열지 못했습니다. 파일이 손상되었거나 너무 클 수 있습니다.';
   }
 }
 
-function registerThemes(){
-  rendition.themes.register('paper', {body:{background:'#FCFAF6', color:'#23262B'}});
-  rendition.themes.register('sepia', {body:{background:'#F2E9D8', color:'#3B3226'}});
-  rendition.themes.register('night', {body:{background:'#14171B', color:'#C3C7CC'}});
+/* ---------- EPUB ---------- */
+async function openEpub(buf,i){
+  book=ePub(buf);
+  rendition=book.renderTo('viewer',{width:'100%',height:'100%',flow:'paginated',spread:view.spread,minSpreadWidth:820,allowScriptedContent:false});
+  rendition.themes.register('paper',{body:{background:'#FCFAF6',color:'#23262B'}});
+  rendition.themes.register('sepia',{body:{background:'#F2E9D8',color:'#3B3226'}});
+  rendition.themes.register('night',{body:{background:'#14171B',color:'#C3C7CC'}});
+  applyTypography();
+  hookEpubContent();
+  await book.ready;
+  await rendition.display(i.cfi||undefined);
+  applyEpubMarks();
+  const key='loc:'+current.id;
+  const saved=await idbGet('locs',key);
+  if(saved){book.locations.load(saved);updateProgress();}
+  else book.locations.generate(1400).then(async()=>{try{await idbPut('locs',key,book.locations.save());}catch(e){}updateProgress();});
+  buildToc();
+  saveCover(current.id);
 }
 function applyTypography(){
-  if(!rendition) return;
+  if(!rendition)return;
   rendition.themes.select(view.theme);
   rendition.themes.fontSize(view.size+'px');
-  rendition.themes.font(view.font==='serif' ? '"Noto Serif KR", Georgia, serif' : '"Noto Sans KR", sans-serif');
-  rendition.themes.override('line-height', view.font==='serif' ? '1.78' : '1.7', true);
-  rendition.themes.override('padding-left','4px',true);
-  rendition.themes.override('padding-right','4px',true);
+  rendition.themes.font(view.font==='serif'?'"Noto Serif KR", Georgia, serif':'"Noto Sans KR", sans-serif');
+  rendition.themes.override('line-height',view.font==='serif'?'1.78':'1.7',true);
 }
-function applyTheme(){
-  const r=$('#reader'); r.classList.remove('paper','sepia','night'); r.classList.add(view.theme);
-}
-
-/* 본문(iframe) 안에 글꼴과 조작을 붙인다 */
-function hookContent(){
+function hookEpubContent(){
   rendition.hooks.content.register(contents=>{
     const doc=contents.document;
-    const l=doc.createElement('link');
-    l.rel='stylesheet';
+    const l=doc.createElement('link');l.rel='stylesheet';
     l.href='https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&family=Noto+Sans+KR:wght@400;500&display=swap';
     doc.head.appendChild(l);
-
-    doc.addEventListener('click', e=>{
-      if(doc.getSelection && String(doc.getSelection()).length) return;
-      const w = doc.documentElement.clientWidth;
-      const x = e.clientX;
-      if(x < w*0.28) turn('prev');
-      else if(x > w*0.72) turn('next');
-      else toggleBars();
+    doc.addEventListener('click',e=>{
+      if(doc.getSelection&&String(doc.getSelection()).trim())return;
+      hideSel();
+      const w=doc.documentElement.clientWidth,x=e.clientX;
+      if(x<w*0.28)turn('prev');else if(x>w*0.72)turn('next');else toggleBars();
     });
-    let sx=0, sy=0, st=0;
-    doc.addEventListener('touchstart', e=>{ const t=e.changedTouches[0]; sx=t.clientX; sy=t.clientY; st=Date.now(); },{passive:true});
-    doc.addEventListener('touchend', e=>{
-      const t=e.changedTouches[0], dx=t.clientX-sx, dy=t.clientY-sy;
-      if(Date.now()-st<600 && Math.abs(dx)>55 && Math.abs(dx)>Math.abs(dy)*1.6){ turn(dx<0?'next':'prev'); }
+    let sx=0,sy=0,st=0;
+    doc.addEventListener('touchstart',e=>{const t=e.changedTouches[0];sx=t.clientX;sy=t.clientY;st=Date.now();},{passive:true});
+    doc.addEventListener('touchend',e=>{
+      if(doc.getSelection&&String(doc.getSelection()).trim())return;
+      const t=e.changedTouches[0],dx=t.clientX-sx,dy=t.clientY-sy;
+      if(Date.now()-st<600&&Math.abs(dx)>55&&Math.abs(dx)>Math.abs(dy)*1.6)turn(dx<0?'next':'prev');
     },{passive:true});
-    doc.addEventListener('keydown', onKey);
+    doc.addEventListener('keydown',onKey);
   });
-  rendition.on('relocated', loc=>{
-    lastCfi = loc.start.cfi;
-    updateProgress(lastCfi);
-    const s = state.books[current.id] || (state.books[current.id]={});
-    s.cfi = lastCfi; s.at = Date.now(); saveLocal(); queueSync();
+  rendition.on('relocated',loc=>{
+    lastCfi=loc.start.cfi;updateProgress();
+    const s=bookState(current.id);s.cfi=lastCfi;s.at=Date.now();saveLocal();queueSync();
+    updateBmIcon();
+  });
+  rendition.on('selected',(cfiRange,contents)=>{
+    const text=String(contents.window.getSelection()).trim();
+    if(!text)return;
+    let rect=null;
+    try{
+      const r=contents.range(cfiRange).getBoundingClientRect();
+      const f=contents.document.defaultView.frameElement.getBoundingClientRect();
+      rect={top:r.top+f.top,bottom:r.bottom+f.top,left:r.left+f.left,width:r.width};
+    }catch(e){}
+    pending={cfi:cfiRange,text,contents};
+    showSel(rect);
   });
 }
-function turn(dir){
-  const v=$('#viewer'); v.classList.add('turning');
-  (dir==='next' ? rendition.next() : rendition.prev()).then(()=>{
-    setTimeout(()=>v.classList.remove('turning'), 40);
-  });
+function applyEpubMarks(){
+  const i=bookInfo(current);
+  i.marks.forEach(m=>drawEpubMark(m));
 }
-function updateProgress(cfi){
-  if(!book || !book.locations || !book.locations.length()) return;
-  const p = Math.round(book.locations.percentageFromCfi(cfi || lastCfi) * 100);
-  if(isNaN(p)) return;
-  $('#rfill').style.width=p+'%'; $('#rnum').textContent=p+'%';
-  const s = state.books[current.id] || (state.books[current.id]={});
-  s.pct = p;
-}
-async function saveCover(id){
-  if(await idbGet('covers', id)) return;
+function drawEpubMark(m){
   try{
-    const url = await book.coverUrl();
-    if(!url) return;
-    const blob = await (await fetch(url)).blob();
-    const fr = new FileReader();
-    fr.onload = () => idbPut('covers', id, fr.result);
-    fr.readAsDataURL(blob);
-  }catch(e){}
+    if(m.style==='underline'){
+      rendition.annotations.add('underline',m.cfi,{},()=>openNote(m.id),'ul-'+m.id,
+        {stroke:m.color,'stroke-opacity':'0.95','stroke-width':'2'});
+    }else{
+      rendition.annotations.add('highlight',m.cfi,{},()=>openNote(m.id),'hl-'+m.id,
+        {fill:m.color,'fill-opacity':view.theme==='night'?'0.42':'0.34',
+         'mix-blend-mode':view.theme==='night'?'screen':'multiply'});
+    }
+  }catch(e){console.warn('표시 실패',e);}
+}
+function removeEpubMark(m){
+  try{rendition.annotations.remove(m.cfi,m.style==='underline'?'underline':'highlight');}catch(e){}
 }
 function buildToc(){
-  const el=$('#tocList'); el.innerHTML='';
-  const add=(items, depth)=>items.forEach(it=>{
-    const b=document.createElement('button');
-    b.style.cssText=`display:block;width:100%;text-align:left;padding:11px 0 11px ${depth*16}px;border-bottom:1px solid rgba(255,255,255,.05);font-size:14px`;
-    b.textContent=it.label.trim();
-    b.onclick=()=>{ rendition.display(it.href); closeSheet('sheetToc'); };
-    el.appendChild(b);
-    if(it.subitems && it.subitems.length) add(it.subitems, depth+1);
+  tocItems=[];
+  const walk=(items,d)=>items.forEach(it=>{tocItems.push({label:it.label.trim(),href:it.href,d});if(it.subitems&&it.subitems.length)walk(it.subitems,d+1);});
+  if(book.navigation&&book.navigation.toc)walk(book.navigation.toc,0);
+}
+let tocItems=[];
+async function saveCover(id){
+  if(await idbGet('covers',id))return;
+  try{
+    const url=await book.coverUrl();if(!url)return;
+    const blob=await(await fetch(url)).blob();
+    const fr=new FileReader();fr.onload=()=>idbPut('covers',id,fr.result);fr.readAsDataURL(blob);
+  }catch(e){}
+}
+
+/* ---------- PDF ---------- */
+async function openPdf(buf,i){
+  pdfDoc=await pdfjsLib.getDocument({data:buf.slice(0)}).promise;
+  pdfPage=Math.min(Math.max(1,i.page||1),pdfDoc.numPages);
+  $('#pgJump').max=pdfDoc.numPages;
+  tocItems=[];
+  try{
+    const out=await pdfDoc.getOutline();
+    if(out)for(const it of out)tocItems.push({label:it.title,href:it.dest,d:0,pdf:true});
+  }catch(e){}
+  await renderPdfPage();
+}
+async function renderPdfPage(){
+  if(!pdfDoc||pdfRendering)return;
+  pdfRendering=true;
+  try{
+    const page=await pdfDoc.getPage(pdfPage);
+    const wrap=$('#pdfWrap'),holder=$('#pdfPage');
+    const vp1=page.getViewport({scale:1});
+    const availW=wrap.clientWidth-16, availH=wrap.clientHeight-16;
+    let scale=availW/vp1.width;
+    if(view.fit==='page')scale=Math.min(scale,availH/vp1.height);
+    pdfScale=scale;
+    const vp=page.getViewport({scale});
+    const dpr=Math.min(window.devicePixelRatio||1,2);
+    const cv=$('#pdfCanvas'),ctx=cv.getContext('2d');
+    cv.width=Math.floor(vp.width*dpr);cv.height=Math.floor(vp.height*dpr);
+    holder.style.width=Math.floor(vp.width)+'px';
+    holder.style.height=Math.floor(vp.height)+'px';
+    holder.style.margin=view.fit==='page'?'8px auto':'8px auto';
+    cv.style.height=Math.floor(vp.height)+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.fillStyle=view.theme==='night'?'#14171B':view.theme==='sepia'?'#F2E9D8':'#FFFFFF';
+    ctx.fillRect(0,0,vp.width,vp.height);
+    await page.render({canvasContext:ctx,viewport:vp,background:'rgba(0,0,0,0)'}).promise;
+    if(view.theme==='night'){cv.style.filter='invert(1) hue-rotate(180deg) brightness(.92)';}
+    else if(view.theme==='sepia'){cv.style.filter='sepia(.28) brightness(.99)';}
+    else cv.style.filter='none';
+
+    const tl=$('#pdfText');tl.innerHTML='';
+    tl.style.setProperty('--scale-factor',scale);
+    const tc=await page.getTextContent();
+    await pdfjsLib.renderTextLayer({textContentSource:tc,container:tl,viewport:vp,textDivs:[]}).promise;
+
+    drawPdfMarks();
+    const s=bookState(current.id);
+    s.page=pdfPage;s.pct=Math.round(pdfPage/pdfDoc.numPages*100);s.at=Date.now();
+    saveLocal();queueSync();
+    $('#rfill').style.width=s.pct+'%';
+    $('#rnum').textContent=`${pdfPage}/${pdfDoc.numPages}`;
+    $('#pgJump').value=pdfPage;
+    wrap.scrollTop=0;
+    updateBmIcon();
+  }finally{pdfRendering=false;}
+}
+function drawPdfMarks(){
+  const box=$('#pdfMarks');box.innerHTML='';
+  const i=bookInfo(current);
+  i.marks.filter(m=>m.page===pdfPage).forEach(m=>{
+    (m.rects||[]).forEach(r=>{
+      const d=document.createElement('div');
+      d.style.left=(r[0]*100)+'%';d.style.top=(r[1]*100)+'%';
+      d.style.width=(r[2]*100)+'%';
+      if(m.style==='underline'){
+        d.style.top=((r[1]+r[3])*100-0.4)+'%';d.style.height='2px';d.style.background=m.color;
+      }else{
+        d.style.height=(r[3]*100)+'%';d.style.background=m.color;
+        d.style.opacity=view.theme==='night'?'.45':'.34';
+        d.style.mixBlendMode=view.theme==='night'?'screen':'multiply';
+      }
+      box.appendChild(d);
+    });
   });
-  if(book.navigation && book.navigation.toc) add(book.navigation.toc, 0);
+}
+$('#pdfWrap').addEventListener('click',e=>{
+  if(String(window.getSelection()).trim())return;
+  hideSel();
+  const w=$('#pdfWrap').clientWidth,x=e.clientX;
+  if(x<w*0.26)turn('prev');else if(x>w*0.74)turn('next');else toggleBars();
+});
+$('#pdfWrap').addEventListener('mouseup',pdfSelection);
+$('#pdfWrap').addEventListener('touchend',()=>setTimeout(pdfSelection,60));
+function pdfSelection(){
+  if(kind!=='pdf')return;
+  const sel=window.getSelection();
+  const text=String(sel).trim();
+  if(!text||!sel.rangeCount)return hideSel();
+  const range=sel.getRangeAt(0);
+  const holder=$('#pdfPage'),box=holder.getBoundingClientRect();
+  const rects=[...range.getClientRects()].filter(r=>r.width>1&&r.height>1);
+  if(!rects.length)return hideSel();
+  pending={page:pdfPage,text,rects:rects.map(r=>[(r.left-box.left)/box.width,(r.top-box.top)/box.height,r.width/box.width,r.height/box.height])};
+  const first=rects[0],last=rects[rects.length-1];
+  showSel({top:first.top,bottom:last.bottom,left:first.left,width:first.width});
+}
+let pdfSx=0,pdfSy=0,pdfSt=0;
+$('#pdfWrap').addEventListener('touchstart',e=>{const t=e.changedTouches[0];pdfSx=t.clientX;pdfSy=t.clientY;pdfSt=Date.now();},{passive:true});
+$('#pdfWrap').addEventListener('touchend',e=>{
+  if(String(window.getSelection()).trim())return;
+  const t=e.changedTouches[0],dx=t.clientX-pdfSx,dy=t.clientY-pdfSy;
+  if(Date.now()-pdfSt<600&&Math.abs(dx)>55&&Math.abs(dx)>Math.abs(dy)*1.6)turn(dx<0?'next':'prev');
+},{passive:true});
+
+/* ---------- 공통 이동 ---------- */
+function turn(dir){
+  if(kind==='pdf'){
+    const n=pdfPage+(dir==='next'?1:-1);
+    if(n<1||n>pdfDoc.numPages)return;
+    pdfPage=n;renderPdfPage();
+    return;
+  }
+  const v=$('#viewer');v.classList.add('turning');
+  (dir==='next'?rendition.next():rendition.prev()).then(()=>setTimeout(()=>v.classList.remove('turning'),40));
+}
+function updateProgress(){
+  if(kind!=='epub'||!book||!book.locations||!book.locations.length())return;
+  const p=Math.round(book.locations.percentageFromCfi(lastCfi)*100);
+  if(isNaN(p))return;
+  $('#rfill').style.width=p+'%';$('#rnum').textContent=p+'%';
+  bookState(current.id).pct=p;
 }
 
-/* 바 숨기기 */
-let barsOn=false;
-function toggleBars(){ barsOn=!barsOn; $('#rtop').classList.toggle('hide',!barsOn); $('#rbot').classList.toggle('hide',!barsOn); }
-function showBars(){ barsOn=true; $('#rtop').classList.remove('hide'); $('#rbot').classList.remove('hide'); }
+/* ---------- 선택 메뉴 ---------- */
+let pending=null;
+function buildSelMenu(){
+  const m=$('#selmenu');m.innerHTML='';
+  MARK_COLORS.forEach(c=>{
+    const b=document.createElement('button');b.title='하이라이트';
+    b.innerHTML=`<span class="sw" style="background:${c}"></span>`;
+    b.onclick=()=>addMark('highlight',c);
+    m.appendChild(b);
+  });
+  const sep=document.createElement('div');sep.className='sep';m.appendChild(sep);
+  const ul=document.createElement('button');ul.title='밑줄';
+  ul.innerHTML='<svg viewBox="0 0 24 24"><path d="M6 4v6a6 6 0 0 0 12 0V4M4 20h16"/></svg>';
+  ul.onclick=()=>addMark('underline',MARK_COLORS[0]);m.appendChild(ul);
+  const nt=document.createElement('button');nt.title='메모';
+  nt.innerHTML='<svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+  nt.onclick=()=>{const id=addMark('highlight',MARK_COLORS[0],true);if(id)openNote(id);};m.appendChild(nt);
+  const cp=document.createElement('button');cp.title='복사';
+  cp.innerHTML='<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
+  cp.onclick=()=>{if(pending)navigator.clipboard.writeText(pending.text).then(()=>toast('복사했습니다'));clearSelection();hideSel();};
+  m.appendChild(cp);
+}
+function showSel(rect){
+  const m=$('#selmenu');m.classList.add('on');
+  const w=m.offsetWidth||250,h=m.offsetHeight||46;
+  let top,left;
+  if(rect){
+    top=rect.top-h-10; if(top<8)top=Math.min(rect.bottom+10,window.innerHeight-h-8);
+    left=rect.left+rect.width/2-w/2;
+  }else{top=window.innerHeight/2-h;left=window.innerWidth/2-w/2;}
+  m.style.top=Math.max(8,Math.min(top,window.innerHeight-h-8))+'px';
+  m.style.left=Math.max(8,Math.min(left,window.innerWidth-w-8))+'px';
+}
+function hideSel(){$('#selmenu').classList.remove('on');pending=null;}
+function clearSelection(){
+  try{window.getSelection().removeAllRanges();}catch(e){}
+  if(kind==='epub'&&pending&&pending.contents){try{pending.contents.window.getSelection().removeAllRanges();}catch(e){}}
+}
+function addMark(style,color,silent){
+  if(!pending)return null;
+  const s=bookState(current.id);
+  if(!s.marks)s.marks=[];
+  const m={id:uid(),style,color,text:pending.text.slice(0,600),note:'',at:Date.now()};
+  if(kind==='epub'){m.cfi=pending.cfi;m.chapter=currentChapter();}
+  else{m.page=pending.page;m.rects=pending.rects;}
+  s.marks.push(m);touch(current.id);
+  if(kind==='epub')drawEpubMark(m);else drawPdfMarks();
+  clearSelection();hideSel();
+  if(!silent)toast(style==='underline'?'밑줄을 그었습니다':'하이라이트했습니다');
+  return m.id;
+}
+function currentChapter(){
+  try{
+    const loc=rendition.currentLocation();
+    const href=loc&&loc.start&&loc.start.href;
+    const hit=tocItems.find(t=>t.href&&href&&t.href.split('#')[0].endsWith(href.split('/').pop()));
+    return hit?hit.label:'';
+  }catch(e){return '';}
+}
+
+/* ---------- 메모 ---------- */
+let noteId=null,noteColor=MARK_COLORS[0];
+function findMark(id){return (bookState(current.id).marks||[]).find(m=>m.id===id);}
+function openNote(id){
+  const m=findMark(id);if(!m)return;
+  noteId=id;noteColor=m.color;
+  $('#noteQuote').textContent=m.text;
+  $('#noteText').value=m.note||'';
+  const el=$('#noteColors');el.innerHTML='';
+  MARK_COLORS.forEach(c=>{
+    const b=document.createElement('button');b.style.background=c;
+    if(c===m.color)b.classList.add('sel');
+    b.onclick=()=>{noteColor=c;[...el.children].forEach(x=>x.classList.remove('sel'));b.classList.add('sel');};
+    el.appendChild(b);
+  });
+  openSheet('sheetNote');
+}
+$('#noteClose').onclick=()=>closeSheet('sheetNote');
+$('#noteSave').onclick=()=>{
+  const m=findMark(noteId);if(!m)return;
+  const changed=m.color!==noteColor;
+  if(changed&&kind==='epub')removeEpubMark(m);
+  m.note=$('#noteText').value.trim();m.color=noteColor;m.at=Date.now();
+  touch(current.id);
+  if(kind==='epub'){if(changed)drawEpubMark(m);}else drawPdfMarks();
+  closeSheet('sheetNote');toast('메모를 저장했습니다');
+};
+$('#noteDel').onclick=()=>{
+  const s=bookState(current.id),m=findMark(noteId);if(!m)return;
+  if(kind==='epub')removeEpubMark(m);
+  s.marks=s.marks.filter(x=>x.id!==noteId);
+  touch(current.id);
+  if(kind==='pdf')drawPdfMarks();
+  closeSheet('sheetNote');toast('지웠습니다');
+};
+
+/* ---------- 책갈피 ---------- */
+function currentBmKey(){return kind==='pdf'?('p'+pdfPage):lastCfi;}
+function findBm(){
+  const s=bookState(current.id);
+  return (s.bmarks||[]).find(b=>b.key===currentBmKey());
+}
+function updateBmIcon(){
+  const on=!!findBm();
+  $('#btnBm').classList.toggle('fill',on);
+  $('#btnBm').classList.toggle('act',on);
+}
+$('#btnBm').onclick=()=>{
+  const s=bookState(current.id);if(!s.bmarks)s.bmarks=[];
+  const key=currentBmKey();if(!key)return;
+  const ex=s.bmarks.find(b=>b.key===key);
+  if(ex){s.bmarks=s.bmarks.filter(b=>b.key!==key);toast('책갈피를 뺐습니다');}
+  else{
+    const label=kind==='pdf'?`${pdfPage}쪽`:(currentChapter()||`${bookState(current.id).pct||0}%`);
+    s.bmarks.push({id:uid(),key,label,page:kind==='pdf'?pdfPage:null,cfi:kind==='epub'?lastCfi:null,at:Date.now()});
+    toast('책갈피를 꽂았습니다');
+  }
+  touch(current.id);updateBmIcon();
+};
+
+/* ---------- 목차·하이라이트·책갈피 목록 ---------- */
+let noteTab='toc';
+$$('#noteTabs button').forEach(b=>b.onclick=()=>{noteTab=b.dataset.v;$$('#noteTabs button').forEach(x=>x.classList.toggle('sel',x===b));renderNoteList();});
+$('#btnNotes').onclick=()=>{renderNoteList();openSheet('sheetNotes');};
+$('#ntClose').onclick=()=>closeSheet('sheetNotes');
+function renderNoteList(){
+  const el=$('#noteList');el.innerHTML='';
+  const i=bookInfo(current);
+  if(noteTab==='toc'){
+    if(!tocItems.length){el.innerHTML='<div class="empty">이 책에는 목차 정보가 없습니다.</div>';return;}
+    tocItems.forEach(it=>{
+      const b=document.createElement('button');
+      b.style.cssText=`display:block;width:100%;text-align:left;padding:11px 0 11px ${it.d*16}px;border-bottom:1px solid rgba(255,255,255,.05);font-size:14px`;
+      b.textContent=it.label;
+      b.onclick=async()=>{
+        closeSheet('sheetNotes');
+        if(kind==='epub')rendition.display(it.href);
+        else{
+          try{
+            const dest=typeof it.href==='string'?await pdfDoc.getDestination(it.href):it.href;
+            const idx=await pdfDoc.getPageIndex(dest[0]);
+            pdfPage=idx+1;renderPdfPage();
+          }catch(e){toast('이동할 수 없는 항목입니다');}
+        }
+      };
+      el.appendChild(b);
+    });
+  }
+  else if(noteTab==='marks'){
+    const ms=[...i.marks].sort((a,b)=>(a.page||0)-(b.page||0)||a.at-b.at);
+    if(!ms.length){el.innerHTML='<div class="empty">아직 하이라이트가 없습니다.<br>본문을 길게 눌러 선택하면 표시할 수 있습니다.</div>';return;}
+    ms.forEach(m=>{
+      const row=document.createElement('div');row.className='item';
+      row.innerHTML=`<span class="barc" style="background:${m.color}"></span>
+        <span class="body">
+          <span class="ex">${esc(m.text)}</span>
+          ${m.note?`<span class="nt">${esc(m.note)}</span>`:''}
+          <span class="wh">${esc(m.chapter||(m.page?m.page+'쪽':''))}${m.style==='underline'?' · 밑줄':''}</span>
+        </span>`;
+      row.style.cursor='pointer';
+      row.onclick=()=>{closeSheet('sheetNotes');jumpTo(m);};
+      const x=document.createElement('button');x.className='x';x.textContent='✎';
+      x.onclick=e=>{e.stopPropagation();closeSheet('sheetNotes');openNote(m.id);};
+      row.appendChild(x);el.appendChild(row);
+    });
+  }
+  else{
+    const bs=[...i.bmarks].sort((a,b)=>a.at-b.at);
+    if(!bs.length){el.innerHTML='<div class="empty">꽂아둔 책갈피가 없습니다.<br>위쪽 리본 아이콘을 누르면 지금 쪽이 저장됩니다.</div>';return;}
+    bs.forEach(bm=>{
+      const row=document.createElement('div');row.className='item';
+      row.innerHTML=`<span class="barc" style="background:var(--brass)"></span>
+        <span class="body"><span class="ex">${esc(bm.label||'표시')}</span>
+        <span class="wh">${new Date(bm.at).toLocaleDateString('ko-KR')}</span></span>`;
+      row.style.cursor='pointer';
+      row.onclick=()=>{closeSheet('sheetNotes');jumpTo(bm);};
+      const x=document.createElement('button');x.className='x';x.textContent='×';
+      x.onclick=e=>{
+        e.stopPropagation();
+        const s=bookState(current.id);s.bmarks=s.bmarks.filter(v=>v.id!==bm.id);
+        touch(current.id);renderNoteList();updateBmIcon();
+      };
+      row.appendChild(x);el.appendChild(row);
+    });
+  }
+}
+function jumpTo(m){
+  if(kind==='epub'&&(m.cfi))rendition.display(m.cfi);
+  else if(kind==='pdf'&&m.page){pdfPage=m.page;renderPdfPage();}
+}
+
+/* ---------- 바·설정 ---------- */
+let barsOn=true;
+function toggleBars(){barsOn=!barsOn;$('#rtop').classList.toggle('hide',!barsOn);$('#rbot').classList.toggle('hide',!barsOn);}
+function showBars(){barsOn=true;$('#rtop').classList.remove('hide');$('#rbot').classList.remove('hide');}
+function applyTheme(){const r=$('#reader');r.classList.remove('paper','sepia','night');r.classList.add(view.theme);}
 function onKey(e){
-  if(!rendition) return;
-  if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' ') { e.preventDefault(); turn('next'); }
-  if(e.key==='ArrowLeft'||e.key==='PageUp') { e.preventDefault(); turn('prev'); }
-  if(e.key==='Escape') backToShelf();
+  if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '){e.preventDefault();turn('next');}
+  if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();turn('prev');}
+  if(e.key==='Escape')backToShelf();
 }
-document.addEventListener('keydown', e=>{ if($('#reader').classList.contains('on')) onKey(e); });
-
-/* 폴드를 접었다 펼 때 읽던 자리로 되돌리기 */
+document.addEventListener('keydown',e=>{if($('#reader').classList.contains('on')&&!$$('.sheet.on').length)onKey(e);});
 let rsT;
-window.addEventListener('resize', ()=>{
-  if(!rendition || !lastCfi) return;
+window.addEventListener('resize',()=>{
   clearTimeout(rsT);
-  rsT=setTimeout(()=>{ rendition.display(lastCfi); }, 260);
+  rsT=setTimeout(()=>{
+    if(kind==='epub'&&rendition&&lastCfi)rendition.display(lastCfi);
+    if(kind==='pdf'&&pdfDoc)renderPdfPage();
+  },260);
 });
-
 function backToShelf(){
-  saveLocal(); syncState();
-  if(rendition){ rendition.destroy(); rendition=null; }
-  if(book){ book.destroy(); book=null; }
-  show('library'); renderShelf();
+  saveLocal();syncState();hideSel();
+  if(rendition){rendition.destroy();rendition=null;}
+  if(book){book.destroy();book=null;}
+  if(pdfDoc){pdfDoc.destroy();pdfDoc=null;}
+  current=null;kind=null;lastCfi=null;
+  show('library');renderShelf();
 }
-
-/* ---------- 화면 조작 연결 ---------- */
-$('#btnBack').onclick = backToShelf;
-$('#btnToc').onclick = ()=>openSheet('sheetToc');
-$('#tocClose').onclick = ()=>closeSheet('sheetToc');
-$('#btnView').onclick = ()=>{ syncViewUI(); openSheet('sheetView'); };
-$('#vClose').onclick = ()=>closeSheet('sheetView');
-$('#btnRefresh').onclick = ()=>scanDrive();
-$('#search').oninput = e=>{ term=e.target.value.trim(); renderShelf(); };
-
+$('#btnBack').onclick=backToShelf;
+$('#btnView').onclick=()=>{syncViewUI();openSheet('sheetView');};
+$('#vClose').onclick=()=>closeSheet('sheetView');
+$('#btnRefresh').onclick=()=>scanDrive();
+$('#search').oninput=e=>{term=e.target.value.trim();renderShelf();};
 function syncViewUI(){
-  $$('#segTheme button').forEach(b=>b.classList.toggle('sel', b.dataset.v===view.theme));
-  $$('#segFont button').forEach(b=>b.classList.toggle('sel', b.dataset.v===view.font));
-  $$('#segSpread button').forEach(b=>b.classList.toggle('sel', b.dataset.v===view.spread));
-  $('#fsNow').textContent = view.size+'px';
+  $$('#segTheme button').forEach(b=>b.classList.toggle('sel',b.dataset.v===view.theme));
+  $$('#segFont button').forEach(b=>b.classList.toggle('sel',b.dataset.v===view.font));
+  $$('#segSpread button').forEach(b=>b.classList.toggle('sel',b.dataset.v===view.spread));
+  $$('#segFit button').forEach(b=>b.classList.toggle('sel',b.dataset.v===view.fit));
+  $('#fsNow').textContent=view.size+'px';
 }
-$$('#segTheme button').forEach(b=>b.onclick=()=>{ view.theme=b.dataset.v; cfg.view=view; applyTheme(); applyTypography(); syncViewUI(); });
-$$('#segFont button').forEach(b=>b.onclick=()=>{ view.font=b.dataset.v; cfg.view=view; applyTypography(); syncViewUI(); });
-$$('#segSpread button').forEach(b=>b.onclick=()=>{
-  view.spread=b.dataset.v; cfg.view=view; syncViewUI();
-  if(rendition){ rendition.spread(view.spread, 820); if(lastCfi) rendition.display(lastCfi); }
-});
-$('#fsUp').onclick=()=>{ view.size=Math.min(34,view.size+1); cfg.view=view; applyTypography(); syncViewUI(); };
-$('#fsDown').onclick=()=>{ view.size=Math.max(12,view.size-1); cfg.view=view; applyTypography(); syncViewUI(); };
+$$('#segTheme button').forEach(b=>b.onclick=()=>{view.theme=b.dataset.v;cfg.view=view;applyTheme();if(kind==='epub')applyTypography();else if(kind==='pdf')renderPdfPage();syncViewUI();});
+$$('#segFont button').forEach(b=>b.onclick=()=>{view.font=b.dataset.v;cfg.view=view;applyTypography();syncViewUI();});
+$$('#segSpread button').forEach(b=>b.onclick=()=>{view.spread=b.dataset.v;cfg.view=view;syncViewUI();if(rendition){rendition.spread(view.spread,820);if(lastCfi)rendition.display(lastCfi);}});
+$$('#segFit button').forEach(b=>b.onclick=()=>{view.fit=b.dataset.v;cfg.view=view;syncViewUI();if(kind==='pdf')renderPdfPage();});
+$('#fsUp').onclick=()=>{view.size=Math.min(34,view.size+1);cfg.view=view;applyTypography();syncViewUI();};
+$('#fsDown').onclick=()=>{view.size=Math.max(12,view.size-1);cfg.view=view;applyTypography();syncViewUI();};
+$('#pgGo').onclick=()=>{
+  const n=parseInt($('#pgJump').value,10);
+  if(!pdfDoc||isNaN(n)||n<1||n>pdfDoc.numPages)return toast('쪽 번호를 확인해 주세요');
+  pdfPage=n;renderPdfPage();closeSheet('sheetView');
+};
 
 /* ---------- 설정 시트 ---------- */
-$('#btnSettings').onclick=()=>{
-  $('#setFid').value=cfg.fid; $('#setCid').value=cfg.cid;
-  $('#setAcct').textContent = account || '연결됨';
-  openSheet('sheetSet');
-};
+$('#btnSettings').onclick=()=>{$('#setFid').value=cfg.fid;$('#setCid').value=cfg.cid;openSheet('sheetSet');};
 $('#setClose').onclick=()=>closeSheet('sheetSet');
-$('#setSave').onclick=()=>{ cfg.fid=$('#setFid').value.trim(); cfg.cid=$('#setCid').value.trim(); closeSheet('sheetSet'); scanDrive(); };
-$('#setClearCache').onclick=async()=>{ await idbClear('files'); await idbClear('locs'); toast('받아둔 책 파일을 비웠습니다'); };
+$('#setCats').onclick=()=>{closeSheet('sheetSet');openCats();};
+$('#setSave').onclick=()=>{cfg.fid=$('#setFid').value.trim();cfg.cid=$('#setCid').value.trim();closeSheet('sheetSet');scanDrive();};
+$('#setClearCache').onclick=async()=>{await idbClear('files');await idbClear('locs');toast('받아둔 책 파일을 비웠습니다');};
 $('#setOut').onclick=()=>{
-  if(accessToken) google.accounts.oauth2.revoke(accessToken, ()=>{});
-  localStorage.removeItem('files'); accessToken=null; closeSheet('sheetSet');
-  show('setup'); toast('연결을 해제했습니다');
+  if(accessToken)google.accounts.oauth2.revoke(accessToken,()=>{});
+  localStorage.removeItem('files2');accessToken=null;closeSheet('sheetSet');show('setup');toast('연결을 해제했습니다');
 };
 
 /* ---------- 연결 ---------- */
-$('#connect').onclick = async ()=>{
-  const cid=$('#cid').value.trim(), fid=$('#fid').value.trim();
-  if(!cid || !fid) return toast('두 칸을 모두 채워 주세요');
-  cfg.cid=cid; cfg.fid=fid;
-  const btn=$('#connect'); btn.disabled=true; btn.textContent='연결하는 중…';
-  try{
-    initToken(); await getToken();
-    await start(true);
-  }catch(e){
-    console.error(e); toast('연결에 실패했습니다. 클라이언트 ID와 승인된 원본 주소를 확인해 주세요.');
-  }finally{ btn.disabled=false; btn.textContent='구글 계정으로 연결'; }
+$('#connect').onclick=async()=>{
+  const cid=$('#cid').value.trim(),fid=$('#fid').value.trim();
+  if(!cid||!fid)return toast('두 칸을 모두 채워 주세요');
+  cfg.cid=cid;cfg.fid=fid;
+  const btn=$('#connect');btn.disabled=true;btn.textContent='연결하는 중…';
+  try{initToken();await getToken();await start(true);}
+  catch(e){console.error(e);toast('연결에 실패했습니다. 클라이언트 ID와 승인된 원본 주소를 확인해 주세요.');}
+  finally{btn.disabled=false;btn.textContent='구글 계정으로 연결';}
 };
-
 async function start(fresh){
-  show('library');
-  await loadState();
-  const c = cachedList();
-  if(c && !fresh){ books=c.books||[]; pdfCount=c.pdfCount||0; renderShelf(); scanDrive(); }
-  else{ await scanDrive(); }
+  show('library');await loadState();
+  const c=cachedList();
+  if(c&&!fresh){books=c.books||[];renderShelf();scanDrive();}
+  else await scanDrive();
 }
 
-/* ---------- 시작 ---------- */
-window.addEventListener('load', async ()=>{
-  $('#cid').value=cfg.cid; $('#fid').value=cfg.fid;
-  syncViewUI();
-  if(cfg.cid && cfg.fid){
-    const c=cachedList();
-    if(c){ books=c.books||[]; state=localState(); show('library'); renderShelf(); }
-    setTimeout(async ()=>{
-      try{ initToken(); await getToken({interactive:false}); await start(false); }
-      catch(e){ if(!c) show('setup'); else toast('구글 로그인이 만료되었습니다. 새로고침을 눌러 주세요.'); }
-    }, 400);
-  }
-  if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+window.addEventListener('load',async()=>{
+  $('#cid').value=cfg.cid;$('#fid').value=cfg.fid;
+  buildSelMenu();syncViewUI();
+  const c=cachedList();
+  if(c){books=c.books||[];state=localState();cats();show('library');renderShelf();}
+  setTimeout(async()=>{
+    try{initToken();await getToken({interactive:false});await start(false);}
+    catch(e){if(!c)show('setup');else toast('구글 로그인이 만료되었습니다. 새로고침을 눌러 주세요.');}
+  },400);
+  if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 });
 </script>
 </body>
