@@ -104,6 +104,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
   box-shadow:0 1px 4px rgba(0,0,0,.4);transform:translate(2px,-3px)
 }
 .nmark:hover{filter:brightness(1.12)}
+.hlrect{position:absolute;pointer-events:none;border-radius:2px}
 #pdfDoc{padding:6px 0 30px}
 .pg{position:relative;margin:0 auto 10px;background:#fff;box-shadow:0 1px 8px rgba(0,0,0,.28)}
 .pg canvas{display:block}
@@ -369,7 +370,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
    EPUB + PDF / 하이라이트·밑줄·메모 / 책갈피 / 분류 관리
    ════════════════════════════════════════════ */
 
-const APP_VERSION='0.7 · 2026-09-17';
+const APP_VERSION='0.8 · 2026-09-17';
 const SCOPES='https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.appdata';
 const STATE_FILE='seojae-state.json';
 const DEFAULT_CID='176016755027-u2v546hup548s1lg6j99023u8n2d6e0i.apps.googleusercontent.com';
@@ -793,7 +794,8 @@ async function openBook(b){
   const i=bookInfo(b);
   $('#rtitle').textContent=i.title;
   $('#rload').style.display='grid';$('#rload').textContent='책을 여는 중…';
-  $('#viewer').innerHTML='';$('#pdfWrap').classList.toggle('on',kind==='pdf');
+  $('#viewer').innerHTML='';$('#noteMarks').innerHTML='';epubHits=[];
+  $('#pdfWrap').classList.toggle('on',kind==='pdf');
   $('#epubOnly').hidden=kind==='pdf';$('#pdfOnly').hidden=kind!=='pdf';
   show('reader');applyTheme();showBars();hideBarsSoon();
   try{
@@ -847,19 +849,22 @@ function hookEpubContent(){
     l.href='https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&family=Noto+Sans+KR:wght@400;500&display=swap';
     doc.head.appendChild(l);
     doc.addEventListener('click',e=>{
-      const w=doc.documentElement.clientWidth,x=e.clientX;
+      const bd=localBand(contents);
+      const x=e.clientX, px=x+bd.f.left, py=e.clientY+bd.f.top;
       const has=doc.getSelection&&String(doc.getSelection()).trim();
       if(has){
-        // 선택해 둔 채로 가장자리를 누르면 쪽만 넘기고 선택은 살려 둔다
-        if(view.mode!=='scroll'&&(x<w*0.28||x>w*0.72)){
+        if(view.mode!=='scroll'&&(x<bd.l+(bd.r-bd.l)*0.28||x>bd.l+(bd.r-bd.l)*0.72)){
           hideSel();
-          (x<w*0.28?rendition.prev():rendition.next()).then(()=>setTimeout(()=>refreshSel(contents),140));
+          (x<bd.l+(bd.r-bd.l)*0.28?rendition.prev():rendition.next()).then(()=>setTimeout(()=>refreshSel(contents),140));
         }
         return;
       }
       hideSel();
+      const hitId=markAt(px,py);
+      if(hitId){ openNote(hitId); return; }          // 표시를 누르면 메모가 열린다
       if(view.mode==='scroll')return toggleBars();
-      if(x<w*0.28)turn('prev');else if(x>w*0.72)turn('next');else toggleBars();
+      const lo=bd.l+(bd.r-bd.l)*0.28, hi=bd.l+(bd.r-bd.l)*0.72;
+      if(x<lo)turn('prev');else if(x>hi)turn('next');else toggleBars();
     });
     let sx=0,sy=0,st=0;
     doc.addEventListener('touchstart',e=>{const t=e.changedTouches[0];sx=t.clientX;sy=t.clientY;st=Date.now();},{passive:true});
@@ -878,10 +883,10 @@ function hookEpubContent(){
       if(view.mode==='scroll')return;
       const sel=contents.window.getSelection();
       if(!sel||sel.isCollapsed)return;
-      const w=doc.documentElement.clientWidth,now=Date.now();
-      if(now-lastTurn<500)return;
-      if(x>w-44){lastTurn=now;rendition.next().then(()=>setTimeout(()=>refreshSel(contents),120));}
-      else if(x<44){lastTurn=now;rendition.prev().then(()=>setTimeout(()=>refreshSel(contents),120));}
+      const bd=localBand(contents),now=Date.now();
+      if(now-lastTurn<520)return;
+      if(x>bd.r-48){lastTurn=now;rendition.next().then(()=>setTimeout(()=>refreshSel(contents),120));}
+      else if(x<bd.l+48){lastTurn=now;rendition.prev().then(()=>setTimeout(()=>refreshSel(contents),120));}
     };
     doc.addEventListener('mousedown',()=>{dragging=true;});
     doc.addEventListener('mousemove',e=>{if(dragging)edge(e.clientX);});
@@ -889,7 +894,7 @@ function hookEpubContent(){
     doc.addEventListener('touchmove',e=>{const t=e.touches&&e.touches[0];if(t)edge(t.clientX);},{passive:true});
   });
   rendition.on('relocated',loc=>{
-    lastCfi=loc.start.cfi;updateProgress();placeNoteMarksSoon();
+    lastCfi=loc.start.cfi;updateProgress();paintSoon();
     const s=bookState(current.id);s.cfi=lastCfi;s.at=Date.now();saveLocal();queueSync();
     updateBmIcon();
   });
@@ -910,7 +915,28 @@ function hookEpubContent(){
     showSel(rect);
   });
 }
-/* 선택이 화면 밖(다음 쪽 이후)까지 번졌을 때, 지금 보이는 쪽 끝까지로 줄인다 */
+/* ── 지금 눈에 보이는 영역 구하기 ─────────────────────────────
+   epub.js 는 쪽 넘김일 때 본문을 가로로 길게 펼쳐두고 창만 밀어서 보여준다.
+   그래서 iframe 의 폭이 아니라, 실제로 보이는 상자를 찾아야 한다. */
+function viewBox(fr){
+  let el=fr.parentElement;
+  while(el&&el!==document.body){
+    const st=getComputedStyle(el);
+    if(st.overflow!=='visible'||st.overflowX!=='visible'||st.overflowY!=='visible')break;
+    el=el.parentElement;
+  }
+  const box=(el&&el!==document.body?el:$('#viewer')).getBoundingClientRect();
+  const v=$('#viewer').getBoundingClientRect();
+  return {left:Math.max(box.left,v.left),right:Math.min(box.right,v.right),
+          top:Math.max(box.top,v.top),bottom:Math.min(box.bottom,v.bottom)};
+}
+/* iframe 안쪽 좌표 기준으로 보이는 왼쪽·오른쪽 끝 */
+function localBand(contents){
+  const fr=contents.document.defaultView.frameElement;
+  const f=fr.getBoundingClientRect(),b=viewBox(fr);
+  return {l:b.left-f.left,r:b.right-f.left,f,b};
+}
+
 function textNodesIn(range){
   const anc=range.commonAncestorContainer;
   const root=anc.nodeType===1?anc:anc.parentNode;
@@ -923,24 +949,25 @@ function textNodesIn(range){
   }
   return out;
 }
+/* 선택이 보이는 쪽 밖까지 번졌으면 보이는 끝까지로 줄인다 */
 function clampToPage(contents){
   try{
     const doc=contents.document,sel=contents.window.getSelection();
     if(!sel||!sel.rangeCount)return false;
     const r=sel.getRangeAt(0);
-    const w=doc.documentElement.clientWidth;
-    const rects=[...r.getClientRects()];
+    const {r:edge}=localBand(contents);
+    const rects=[...r.getClientRects()].filter(x=>x.width>0.5||x.height>0.5);
     if(!rects.length)return false;
-    if(Math.max(...rects.map(x=>x.right))<=w+2)return false;   // 이미 화면 안
+    if(Math.max(...rects.map(x=>x.right))<=edge+2)return false;   // 이미 보이는 범위 안
     const nodes=textNodesIn(r);
     if(!nodes.length)return false;
     const probe=doc.createRange();
     probe.setStart(r.startContainer,r.startOffset);
     const inView=(n,off)=>{
       try{probe.setEnd(n,off);}catch(e){return false;}
-      const rs=[...probe.getClientRects()];
+      const rs=[...probe.getClientRects()].filter(x=>x.width>0.5||x.height>0.5);
       if(!rs.length)return true;
-      return Math.max(...rs.map(x=>x.right))<=w+2;
+      return Math.max(...rs.map(x=>x.right))<=edge+2;
     };
     let bestNode=null,bestOff=0;
     for(const n of nodes){
@@ -958,10 +985,40 @@ function clampToPage(contents){
     const nr=doc.createRange();
     nr.setStart(r.startContainer,r.startOffset);
     nr.setEnd(bestNode,bestOff);
-    if(String(nr).trim()===''){return false;}
+    if(!String(nr).trim())return false;
     sel.removeAllRanges();sel.addRange(nr);
+    trimToSentence(contents);         // 문장이 끝나는 곳까지만 남긴다
     return true;
   }catch(e){console.warn('선택 범위 정리 실패',e);return false;}
+}
+/* 넘쳐서 잘린 선택을, 마지막 문장이 끝나는 자리까지로 다듬는다 */
+function trimToSentence(contents){
+  try{
+    const doc=contents.document,sel=contents.window.getSelection();
+    if(!sel.rangeCount)return;
+    const r=sel.getRangeAt(0),text=String(r);
+    if(text.length<20)return;
+    const re=/[.!?。！？](["'”’\)\]]?)(\s|$)|다\.|요\.|까\?|죠\./g;
+    let cut=-1,m;
+    while((m=re.exec(text))!==null)cut=m.index+m[0].length;
+    if(cut<0||cut>=text.length-1)return;
+    if(cut<text.length*0.3)return;    // 너무 많이 잘려 나가면 그대로 둔다
+    const nodes=textNodesIn(r);
+    let left=cut,endNode=null,endOff=0;
+    for(const n of nodes){
+      const from=(n===r.startContainer)?r.startOffset:0;
+      const to=(n===r.endContainer)?r.endOffset:n.textContent.length;
+      const len=to-from;
+      if(len<=0)continue;
+      if(left<=len){endNode=n;endOff=from+left;break;}
+      left-=len;
+    }
+    if(!endNode)return;
+    const nr=doc.createRange();
+    nr.setStart(r.startContainer,r.startOffset);
+    nr.setEnd(endNode,endOff);
+    if(String(nr).trim()){sel.removeAllRanges();sel.addRange(nr);}
+  }catch(e){}
 }
 /* 쪽을 넘긴 뒤에도 남아 있는 선택을 다시 집어 메뉴를 띄운다 */
 function refreshSel(contents){
@@ -978,59 +1035,81 @@ function refreshSel(contents){
   }catch(e){}
 }
 
-function applyEpubMarks(){
-  const i=bookInfo(current);
-  i.marks.forEach(m=>drawEpubMark(m));
-  placeNoteMarks();
-}
-/* 메모가 달린 자리에 작은 메모지를 띄운다 (지금 보이는 쪽에 있는 것만) */
-let noteMarkT;
-function placeNoteMarksSoon(){clearTimeout(noteMarkT);noteMarkT=setTimeout(placeNoteMarks,90);}
-function placeNoteMarks(){
+/* ── 하이라이트·밑줄·메모를 직접 그린다 ───────────────────────
+   epub.js 가 그려주는 방식은 쪽을 넘기면 좌표가 어긋나서 직접 얹는다. */
+let epubHits=[];
+let paintT;
+function paintSoon(){clearTimeout(paintT);paintT=setTimeout(paintEpubMarks,80);}
+function paintEpubMarks(){
   const host=$('#noteMarks');
   if(!host)return;
-  host.innerHTML='';
+  host.innerHTML='';epubHits=[];
   if(kind!=='epub'||!rendition||!current)return;
   const stage=$('#stage').getBoundingClientRect();
+  let pre=null;
+  try{
+    const loc=rendition.currentLocation();
+    const c=loc&&loc.start&&loc.start.cfi;
+    if(c&&c.indexOf('!')>0)pre=c.slice(0,c.indexOf('!')+1);
+  }catch(e){}
   (bookInfo(current).marks||[]).forEach(m=>{
-    if(!(m.style==='note'||m.note))return;
-    try{
-      const range=rendition.getRange(m.cfi);
-      if(!range)return;
-      const doc=range.startContainer.ownerDocument;
-      const fr=doc.defaultView.frameElement;
-      if(!fr)return;
-      const f=fr.getBoundingClientRect();
-      const rects=[...range.getClientRects()].filter(r=>r.width>0||r.height>0);
-      if(!rects.length)return;
-      const last=rects[rects.length-1];
-      const w=doc.documentElement.clientWidth;
-      if(last.right<-4||last.left>w+4)return;          // 다른 쪽에 있는 메모
+    if(!m.cfi)return;
+    if(pre&&m.cfi.indexOf(pre)!==0)return;          // 다른 장에 있는 표시
+    let range=null;
+    try{ range=rendition.getRange(m.cfi); }catch(e){ return; }
+    if(!range)return;
+    const doc=range.startContainer&&range.startContainer.ownerDocument;
+    const fr=doc&&doc.defaultView&&doc.defaultView.frameElement;
+    if(!fr)return;
+    const f=fr.getBoundingClientRect(),b=viewBox(fr);
+    const rects=[...range.getClientRects()].filter(r=>r.width>0.5&&r.height>0.5);
+    const shown=[];
+    rects.forEach(r=>{
+      const x=r.left+f.left,y=r.top+f.top;
+      if(x+r.width<b.left-1||x>b.right+1)return;
+      if(y+r.height<b.top-1||y>b.bottom+1)return;
+      shown.push({x,y,w:r.width,h:r.height});
+      if(m.style==='note')return;
+      const d=document.createElement('div');
+      d.className='hlrect';
+      d.style.left=(x-stage.left)+'px';
+      d.style.width=r.width+'px';
+      if(m.style==='underline'){
+        d.style.top=(y+r.height-2.5-stage.top)+'px';
+        d.style.height='2px';d.style.background=m.color;
+      }else{
+        d.style.top=(y-stage.top)+'px';
+        d.style.height=r.height+'px';
+        d.style.background=m.color;
+        d.style.opacity=view.theme==='night'?'.30':'.36';
+      }
+      host.appendChild(d);
+    });
+    if(!shown.length)return;
+    epubHits.push({id:m.id,rects:shown});
+    if(m.style==='note'||m.note){
+      const last=shown[shown.length-1];
       const d=document.createElement('div');
       d.className='nmark';d.textContent='✎';d.title=m.note?m.note.slice(0,60):'메모';
-      d.style.left=(last.right+f.left-stage.left)+'px';
-      d.style.top=(last.top+f.top-stage.top)+'px';
+      d.style.left=(last.x+last.w-stage.left)+'px';
+      d.style.top=(last.y-stage.top)+'px';
       d.onclick=e=>{e.stopPropagation();openNote(m.id);};
       host.appendChild(d);
-    }catch(e){}
+    }
   });
 }
-function drawEpubMark(m){
-  if(m.style==='note')return;            // 메모는 색칠 대신 메모지 표시로
-  try{
-    if(m.style==='underline'){
-      rendition.annotations.add('underline',m.cfi,{},()=>openNote(m.id),'ul-'+m.id,
-        {stroke:m.color,'stroke-opacity':'0.95','stroke-width':'2'});
-    }else{
-      rendition.annotations.add('highlight',m.cfi,{},()=>openNote(m.id),'hl-'+m.id,
-        {fill:m.color,'fill-opacity':view.theme==='night'?'0.42':'0.34',
-         'mix-blend-mode':view.theme==='night'?'screen':'multiply'});
-    }
-  }catch(e){console.warn('표시 실패',e);}
+/* 본문에서 표시를 눌렀는지 검사 (좌표는 화면 기준) */
+function markAt(px,py){
+  for(const h of epubHits)
+    for(const r of h.rects)
+      if(px>=r.x-2&&px<=r.x+r.w+2&&py>=r.y-2&&py<=r.y+r.h+2)return h.id;
+  return null;
 }
-function removeEpubMark(m){
-  try{rendition.annotations.remove(m.cfi,m.style==='underline'?'underline':'highlight');}catch(e){}
-}
+function applyEpubMarks(){ paintEpubMarks(); }
+function drawEpubMark(){ paintSoon(); }
+function removeEpubMark(){ paintSoon(); }
+function placeNoteMarks(){ paintEpubMarks(); }
+
 function buildToc(){
   tocItems=[];
   const walk=(items,d)=>(items||[]).forEach(it=>{
@@ -1315,7 +1394,7 @@ function addMark(style,color,silent){
   if(kind==='epub'){m.cfi=pending.cfi;m.chapter=currentChapter();}
   else{m.page=pending.page;m.rects=pending.rects;}
   s.marks.push(m);touch(current.id);
-  if(kind==='epub'){drawEpubMark(m);placeNoteMarks();}else drawPdfMarks(m.page);
+  if(kind==='epub')paintEpubMarks();else drawPdfMarks(m.page);
   clearSelection();hideSel();
   if(!silent)toast(style==='underline'?'밑줄을 그었습니다':'하이라이트했습니다');
   return m.id;
@@ -1353,7 +1432,7 @@ $('#noteSave').onclick=()=>{
   if(changed&&kind==='epub')removeEpubMark(m);
   m.note=$('#noteText').value.trim();m.color=noteColor;m.at=Date.now();
   touch(current.id);
-  if(kind==='epub'){if(changed)drawEpubMark(m);placeNoteMarks();}else drawPdfMarks(m.page);
+  if(kind==='epub')paintEpubMarks();else drawPdfMarks(m.page);
   closeSheet('sheetNote');toast('메모를 저장했습니다');
 };
 $('#noteDel').onclick=()=>{
@@ -1361,7 +1440,7 @@ $('#noteDel').onclick=()=>{
   if(kind==='epub')removeEpubMark(m);
   m.del=true;m.at=Date.now();
   touch(current.id);
-  if(kind==='pdf')redrawPdfMarks();else placeNoteMarks();
+  if(kind==='pdf')redrawPdfMarks();else paintEpubMarks();
   closeSheet('sheetNote');toast('지웠습니다');
 };
 
