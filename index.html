@@ -185,7 +185,7 @@ details.help code{background:#151A20;padding:1px 5px;border-radius:4px;color:var
 <section id="setup" class="screen on">
   <div class="pane">
     <h2>서재를 드라이브에 연결합니다</h2>
-    <p class="lead">한 번만 설정하면 맥북과 폴드에서 같은 책, 같은 위치로 이어집니다.</p>
+    <p class="lead">두 칸은 이미 채워져 있습니다. 아래 버튼만 누르시면 됩니다. 한 번 연결하면 맥북과 폴드에서 같은 책, 같은 위치로 이어집니다.</p>
 
     <div class="field">
       <label for="cid">Google 클라이언트 ID</label>
@@ -318,6 +318,10 @@ details.help code{background:#151A20;padding:1px 5px;border-radius:4px;color:var
 const SCOPES = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.appdata';
 const STATE_FILE = 'seojae-state.json';
 
+/* 미리 채워 둔 값 — 나중에 바꾸시려면 설정 화면에서 고치면 됩니다 */
+const DEFAULT_CID = '176016755027-u2v546hup548s1lg6j99023u8n2d6e0i.apps.googleusercontent.com';
+const DEFAULT_FID = '1RqBOCgukIDMIHXjQ0u0ceOxQDrsbH8rw';
+
 const CATS = [
   {id:'comm', name:'성경주석', color:'var(--c-comm)',
    kw:['주석','강해','commentary','exegetical','wbc','nicnt','nicot','nigtc','becnt','icc','pillar','word biblical','anchor bible','틴델','tyndale']},
@@ -348,8 +352,8 @@ $$('.sheet').forEach(sh => sh.addEventListener('click', e=>{ if(e.target===sh) s
 
 /* ---------- 설정 저장 ---------- */
 const cfg = {
-  get cid(){ return localStorage.getItem('cid')||''; }, set cid(v){ localStorage.setItem('cid',v); },
-  get fid(){ return localStorage.getItem('fid')||''; }, set fid(v){ localStorage.setItem('fid',v); },
+  get cid(){ return localStorage.getItem('cid')||DEFAULT_CID; }, set cid(v){ localStorage.setItem('cid',v); },
+  get fid(){ return localStorage.getItem('fid')||DEFAULT_FID; }, set fid(v){ localStorage.setItem('fid',v); },
   get view(){ try{ return JSON.parse(localStorage.getItem('view'))||{}; }catch(e){ return {}; } },
   set view(v){ localStorage.setItem('view', JSON.stringify(v)); }
 };
