@@ -127,7 +127,14 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
 /* 선택 메뉴 */
 .selmenu{position:fixed;z-index:70;display:none;gap:3px;background:#0F1318;border:1px solid var(--line);border-radius:12px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.45)}
 .selmenu.on{display:flex}
+.selmenu.dock{
+  left:50%!important;transform:translateX(-50%);
+  top:calc(env(safe-area-inset-top) + 10px)!important;padding:7px;gap:4px;
+}
+.selmenu.dock button{width:40px;height:40px}
 .selmenu button{width:34px;height:34px;border-radius:8px;display:grid;place-items:center}
+.selmenu button.wide{width:auto;padding:0 11px;font-size:13px;white-space:nowrap}
+@media (pointer:coarse){ .selmenu button{width:40px;height:40px} .selmenu button.wide{width:auto} }
 .selmenu button:hover{background:var(--shelf-hi)}
 .selmenu .sw{width:19px;height:19px;border-radius:50%;border:1px solid rgba(0,0,0,.25)}
 .selmenu svg{width:18px;height:18px;fill:none;stroke:var(--text);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
@@ -271,8 +278,9 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
       <button data-v="serif">명조</button><button data-v="sans">고딕</button></div></div>
     <div class="field"><label>글자 크기</label><div class="sizerow">
       <button id="fsDown" aria-label="작게">−</button><span id="fsNow">18px</span><button id="fsUp" aria-label="크게">+</button></div></div>
-    <div class="field"><label>펼친 화면에서 두 쪽 보기</label><div class="seg" id="segSpread">
-      <button data-v="auto">자동</button><button data-v="none">항상 한 쪽</button></div></div>
+    <div class="field"><label>두 쪽 보기</label><div class="seg" id="segSpread">
+      <button data-v="auto">자동</button><button data-v="always">항상 두 쪽</button><button data-v="none">항상 한 쪽</button></div>
+      <div class="hint">폴드를 펼쳤는데 한 쪽만 나오면 "항상 두 쪽"으로 두세요.</div></div>
   </div>
   <div id="pdfOnly" hidden>
     <div class="field"><label>화면 돌리기</label><div class="seg">
@@ -370,7 +378,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
    EPUB + PDF / 하이라이트·밑줄·메모 / 책갈피 / 분류 관리
    ════════════════════════════════════════════ */
 
-const APP_VERSION='0.8 · 2026-09-17';
+const APP_VERSION='1.0 · 2026-09-17';
 const SCOPES='https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.appdata';
 const STATE_FILE='seojae-state.json';
 const DEFAULT_CID='176016755027-u2v546hup548s1lg6j99023u8n2d6e0i.apps.googleusercontent.com';
@@ -394,6 +402,7 @@ const DEFAULT_CATS=[
 
 /* ---------- 도구 ---------- */
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const TOUCH=(window.matchMedia&&matchMedia('(pointer:coarse)').matches)||('ontouchstart' in window);
 let toastT;
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),2600);}
 function show(id){$$('.screen').forEach(s=>s.classList.toggle('on',s.id===id));}
@@ -816,7 +825,7 @@ async function openEpub(buf,i){
   rendition=book.renderTo('viewer',{width:'100%',height:'100%',
     flow:view.mode==='scroll'?'scrolled-doc':'paginated',
     spread:view.mode==='scroll'?'none':view.spread,
-    minSpreadWidth:820,allowScriptedContent:false});
+    minSpreadWidth:spreadMin(),allowScriptedContent:false});
   rendition.themes.register('paper',{body:{background:'#FCFAF6',color:'#23262B'}});
   rendition.themes.register('sepia',{body:{background:'#F2E9D8',color:'#3B3226'}});
   rendition.themes.register('night',{body:{background:'#14171B',color:'#C3C7CC'}});
@@ -835,6 +844,10 @@ async function openEpub(buf,i){
   try{ buildToc(); }catch(e){ console.warn('목차 읽기 실패',e); tocItems=[]; }
   try{ saveCover(current.id); }catch(e){}
 }
+/* epub.js 는 "항상"이라고 해도 최소 폭을 넘어야 두 쪽으로 나눈다.
+   "항상 두 쪽"을 고르면 그 기준을 0 으로 내려 화면이 좁아도 두 쪽으로 만든다. */
+function spreadMin(){ return view.spread==='always' ? 0 : 600; }
+
 function applyTypography(){
   if(!rendition)return;
   rendition.themes.select(view.theme);
@@ -866,13 +879,17 @@ function hookEpubContent(){
       const lo=bd.l+(bd.r-bd.l)*0.28, hi=bd.l+(bd.r-bd.l)*0.72;
       if(x<lo)turn('prev');else if(x>hi)turn('next');else toggleBars();
     });
-    let sx=0,sy=0,st=0;
-    doc.addEventListener('touchstart',e=>{const t=e.changedTouches[0];sx=t.clientX;sy=t.clientY;st=Date.now();},{passive:true});
+    let sx=0,sy=0,st=0,selAtStart=false;
+    doc.addEventListener('touchstart',e=>{
+      const t=e.changedTouches[0];sx=t.clientX;sy=t.clientY;st=Date.now();
+      selAtStart=!!(doc.getSelection&&String(doc.getSelection()).trim());
+    },{passive:true});
     doc.addEventListener('touchend',e=>{
       if(view.mode==='scroll')return;
+      if(selAtStart)return;
       if(doc.getSelection&&String(doc.getSelection()).trim())return;
       const t=e.changedTouches[0],dx=t.clientX-sx,dy=t.clientY-sy;
-      if(Date.now()-st<600&&Math.abs(dx)>55&&Math.abs(dx)>Math.abs(dy)*1.6)turn(dx<0?'next':'prev');
+      if(Date.now()-st<340&&Math.abs(dx)>55&&Math.abs(dx)>Math.abs(dy)*1.6)turn(dx<0?'next':'prev');
     },{passive:true});
     doc.addEventListener('keydown',onKey);
 
@@ -889,9 +906,10 @@ function hookEpubContent(){
       else if(x<bd.l+48){lastTurn=now;rendition.prev().then(()=>setTimeout(()=>refreshSel(contents),120));}
     };
     doc.addEventListener('mousedown',()=>{dragging=true;});
-    doc.addEventListener('mousemove',e=>{if(dragging)edge(e.clientX);});
+    doc.addEventListener('mousemove',e=>{if(dragging&&!TOUCH)edge(e.clientX);});
     doc.addEventListener('mouseup',()=>{dragging=false;});
-    doc.addEventListener('touchmove',e=>{const t=e.touches&&e.touches[0];if(t)edge(t.clientX);},{passive:true});
+    // 손가락은 제외한다. 안드로이드는 선택 손잡이를 끄는 동작을 웹에 알려주지 않아서
+    // 여기서 쪽을 넘기면 글을 고르는 도중에 화면이 넘어가 버린다.
   });
   rendition.on('relocated',loc=>{
     lastCfi=loc.start.cfi;updateProgress();paintSoon();
@@ -1350,8 +1368,20 @@ function updateProgress(){
 
 /* ---------- 선택 메뉴 ---------- */
 let pending=null;
+function turnKeepSel(dir){
+  if(kind!=='epub'||!pending||!pending.contents)return;
+  const c=pending.contents;
+  (dir==='next'?rendition.next():rendition.prev()).then(()=>setTimeout(()=>refreshSel(c),170));
+}
 function buildSelMenu(){
   const m=$('#selmenu');m.innerHTML='';
+  const prev=document.createElement('button');prev.title='이전 쪽 (선택 유지)';
+  prev.innerHTML='<svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>';
+  prev.className='pgbtn';prev.onclick=()=>turnKeepSel('prev');m.appendChild(prev);
+  const next=document.createElement('button');next.title='다음 쪽 (선택 유지)';
+  next.innerHTML='<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>';
+  next.className='pgbtn';next.onclick=()=>turnKeepSel('next');m.appendChild(next);
+  const sp0=document.createElement('div');sp0.className='sep pgbtn';m.appendChild(sp0);
   MARK_COLORS.forEach(c=>{
     const b=document.createElement('button');b.title='하이라이트';
     b.innerHTML=`<span class="sw" style="background:${c}"></span>`;
@@ -1372,6 +1402,16 @@ function buildSelMenu(){
 }
 function showSel(rect){
   const m=$('#selmenu');m.classList.add('on');
+  // 쪽 넘김 화살표는 쪽 넘김 방식의 EPUB 에서만 쓸모가 있다
+  const useArrow=(kind==='epub'&&view.mode!=='scroll');
+  m.querySelectorAll('.pgbtn').forEach(b=>b.style.display=useArrow?'':'none');
+  if(TOUCH){
+    m.classList.add('dock');
+    $('#rtop').classList.add('hide');barsOn=false;
+    m.style.left='';m.style.top='';
+    return;
+  }
+  m.classList.remove('dock');
   const w=m.offsetWidth||250,h=m.offsetHeight||46;
   let top,left;
   if(rect){
@@ -1579,7 +1619,10 @@ let rsT;
 window.addEventListener('resize',()=>{
   clearTimeout(rsT);
   rsT=setTimeout(()=>{
-    if(kind==='epub'&&rendition&&lastCfi)rendition.display(lastCfi);
+    if(kind==='epub'&&rendition&&lastCfi){
+      try{ rendition.spread(view.spread,spreadMin()); }catch(e){}
+      rendition.display(lastCfi).then(paintSoon);
+    }
     if(kind==='pdf'&&pdfDoc)buildPdfLayout();
   },260);
 });
@@ -1647,7 +1690,17 @@ $('#rotL').onclick=()=>rotate(-90);
 $('#rotR').onclick=()=>rotate(90);
 $('#rot0').onclick=()=>rotate(null);
 $$('#segFont button').forEach(b=>b.onclick=()=>{view.font=b.dataset.v;cfg.view=view;applyTypography();syncViewUI();});
-$$('#segSpread button').forEach(b=>b.onclick=()=>{view.spread=b.dataset.v;cfg.view=view;syncViewUI();if(rendition){rendition.spread(view.spread,820);if(lastCfi)rendition.display(lastCfi);}});
+$$('#segSpread button').forEach(b=>b.onclick=()=>{
+  view.spread=b.dataset.v;cfg.view=view;syncViewUI();
+  if(!rendition)return;
+  try{
+    rendition.spread(view.spread,spreadMin());
+    if(rendition.manager&&rendition.manager.layout)
+      rendition.manager.layout.spread(view.spread,spreadMin());
+    rendition.resize();
+  }catch(e){console.warn('두 쪽 설정 적용 실패',e);}
+  setTimeout(()=>{ if(lastCfi)rendition.display(lastCfi).then(paintSoon); },80);
+});
 $$('#segFit button').forEach(b=>b.onclick=()=>{view.fit=b.dataset.v;cfg.view=view;syncViewUI();if(kind==='pdf')buildPdfLayout();});
 $('#fsUp').onclick=()=>{view.size=Math.min(34,view.size+1);cfg.view=view;applyTypography();syncViewUI();};
 $('#fsDown').onclick=()=>{view.size=Math.max(12,view.size-1);cfg.view=view;applyTypography();syncViewUI();};
