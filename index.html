@@ -117,7 +117,7 @@ details.help code{background:#151A20;padding:1px 5px;border-radius:4px;color:var
   font-family:var(--serif);font-size:16px;line-height:1.35;
   overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
 }
-.meta .a{font-size:12.5px;color:var(--muted);margin-top:4px}
+.meta .a{font-size:12.5px;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pct{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;padding-right:2px}
 .pct.done{color:var(--brass)}
 .empty{padding:60px 24px;text-align:center;color:var(--muted);line-height:1.7}
@@ -420,25 +420,68 @@ async function api(url, opts={}){
 }
 
 /* ---------- 파일명에서 제목·저자·분류 추측 ---------- */
+
+/* 파일명 조각 중 버릴 것들 — 해시값, ISBN, 사이트 이름, 파일 형식 표시 */
+const JUNK = [
+  /^[0-9a-f]{32}$/i,                                  // 32자리 해시
+  /^[0-9a-f]{40}$/i,
+  /anna\s*['’`]?\s*s?\s*archive/i,                    // Anna's Archive
+  /z[-\s]?lib(rary)?/i,                               // Z-Library, z-lib.org
+  /libgen|library\s*genesis/i,
+  /oceanofpdf|epubshare|bookfi|b-ok\b/i,
+  /^[\d][\d\s\-xX]{8,19}$/,                           // ISBN 같은 긴 숫자
+  /^[a-z0-9][a-z0-9\-]*\.(com|org|net|io|ru|se|is|to|cc)$/i,   // 도메인 주소
+  /^(epub|pdf|mobi|azw3|retail|scan|ocr|calibre|v\d+(\.\d+)?)$/i
+];
+const isJunk = s => { const t=(s||'').trim(); return !t || JUNK.some(r=>r.test(t)); };
+
+/* 조각 하나를 다듬는다 — 중복 저자 표기 [성, 이름], (z-lib.org) 같은 꼬리표 제거 */
+function tidySeg(s){
+  return (s||'')
+    .replace(/\s*\[[^\]]*\]\s*/g, ' ')                                   // [Lloyd-Jones, D Martyn]
+    .replace(/\s*[(（][^)）]*(z-?lib|anna|archive|oceanof|libgen)[^)）]*[)）]/ig, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[\s,;·・]+|[\s,;·・-]+$/g, '')
+    .trim();
+}
+
 function guessMeta(filename){
-  let base = filename.replace(/\.epub$/i,'').trim();
-  base = base.replace(/^\d{1,3}\s*[.\-_)\]]\s*/,'');          // 01. 앞번호 제거
+  let base = filename.replace(/\.(epub|pdf)$/i,'').trim();
+  base = base.replace(/^\d{1,3}\s*[.\-_)\]]\s*/,'');       // 앞번호 01. 제거
   base = base.replace(/[_]+/g,' ').replace(/\s{2,}/g,' ').trim();
-  let title = base, author = '';
-  let m;
-  if((m = base.match(/^\[([^\]]{1,30})\]\s*(.+)$/))){ author=m[1]; title=m[2]; }
-  else if((m = base.match(/^(.+?)\s+[-–—]\s+(.+)$/))){
-    const a=m[1].trim(), b=m[2].trim();
-    if(a.length<=22 && b.length>=a.length){ author=a; title=b; } else { title=a; author=b.length<=22?b:''; }
+  // (Z-Library), (z-lib.org) 같은 꼬리표는 제목 판단 전에 먼저 떼어낸다
+  base = base.replace(/\s*[(（\[][^)）\]]*(z-?lib|anna\s*['’`]?\s*s?\s*archive|oceanof|libgen|b-ok)[^)）\]]*[)）\]]/ig,'').trim();
+
+  let title = base, author = '', extra = '';
+
+  if(/\s*--\s*/.test(base)){
+    /* Anna's Archive 형식: 제목 -- 저자 -- 시리즈 -- 출판사 -- ISBN -- 해시 -- 사이트 */
+    let segs = base.split(/\s*--\s*/).map(tidySeg).filter(s => s && !isJunk(s));
+    if(segs.length){
+      title  = segs[0];
+      author = segs[1] || '';
+      extra  = segs.slice(2).join(' · ');
+    }
+  }else{
+    let m;
+    if((m = base.match(/^\[([^\]]{1,30})\]\s*(.+)$/))){ author=m[1]; title=m[2]; }
+    else if((m = base.match(/^(.+?)\s+[-–—]\s+(.+)$/))){
+      const a=m[1].trim(), b=m[2].trim();
+      if(a.length<=22 && b.length>=a.length){ author=a; title=b; } else { title=a; author=b.length<=22?b:''; }
+    }
+    else if((m = base.match(/^(.+?)\s*[(（]([^)）]{2,25})[)）]\s*$/))){
+      const inner=m[2];
+      if(!/판|쇄|권|vol|edition|개정/i.test(inner)){ title=m[1].trim(); author=inner.trim(); }
+    }
+    title = tidySeg(title); author = tidySeg(author);
   }
-  else if((m = base.match(/^(.+?)\s*[(（]([^)）]{2,25})[)）]\s*$/))){
-    const inner=m[2];
-    if(!/판|쇄|권|vol|edition|개정/i.test(inner)){ title=m[1].trim(); author=inner.trim(); }
-  }
+
+  if(isJunk(author)) author = '';
+
   const low = filename.toLowerCase();
   let cat = 'gen';
   for(const c of CATS){ if(c.kw.some(k=>low.includes(k))){ cat=c.id; break; } }
-  return {title:title.trim(), author:author.trim(), cat};
+  return {title:title.trim()||base, author:author.trim(), extra, cat};
 }
 
 /* ---------- 상태(진행률·메타 수정) ---------- */
@@ -532,6 +575,7 @@ function bookInfo(b){
   return {
     title: saved.title || g.title,
     author: saved.author || g.author,
+    extra: g.extra || '',
     cat: saved.cat || g.cat,
     pct: saved.pct || 0,
     cfi: saved.cfi || null,
@@ -574,13 +618,14 @@ function renderShelf(){
   const frag=document.createDocumentFragment();
   list.forEach(({b,i})=>{
     const c=catOf(i.cat);
+    const sub = [i.author||'저자 미상', i.extra, c.name].filter(Boolean).join(' · ');
     const row=document.createElement('button');
     row.className='row';
     row.innerHTML = `
       <span class="spine" style="--sp:${c.color};--fill:${i.pct}%"><i></i></span>
       <span class="meta">
         <span class="t">${esc(i.title)}</span>
-        <span class="a">${esc(i.author||'저자 미상')} · ${c.name}</span>
+        <span class="a">${esc(sub)}</span>
       </span>
       <span class="pct ${i.pct>=100?'done':''}">${i.pct?i.pct+'%':''}</span>`;
     row.onclick=()=>openBook(b);
