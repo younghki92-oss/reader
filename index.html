@@ -83,14 +83,19 @@ details.help code{background:#151A20;padding:1px 5px;border-radius:4px;color:var
 #reader.sepia{background:var(--sepia)}
 #reader.night{background:var(--night)}
 #stage{flex:1;min-height:0;position:relative}
-#viewer{position:absolute;inset:0;transition:opacity .13s ease}
+#viewer,#pdfWrap{
+  position:absolute;left:0;right:0;width:100%;max-width:1120px;margin:0 auto;
+  top:calc(env(safe-area-inset-top) + 54px); bottom:52px;
+}
+#viewer{transition:opacity .13s ease}
 #viewer.turning{opacity:.25}
-#pdfWrap{position:absolute;inset:0;display:none;overflow:auto;-webkit-overflow-scrolling:touch}
+#pdfWrap{display:none;overflow:auto;-webkit-overflow-scrolling:touch}
 #pdfWrap.on{display:block}
-#pdfPage{position:relative;margin:0 auto}
-#pdfPage canvas{display:block;width:100%;height:auto}
-#pdfMarks{position:absolute;inset:0;pointer-events:none}
-#pdfMarks div{position:absolute;border-radius:2px}
+#pdfDoc{padding:6px 0 30px}
+.pg{position:relative;margin:0 auto 10px;background:#fff;box-shadow:0 1px 8px rgba(0,0,0,.28)}
+.pg canvas{display:block}
+.pg .mk{position:absolute;inset:0;pointer-events:none}
+.pg .mk div{position:absolute;border-radius:2px}
 .textLayer{position:absolute;inset:0;overflow:hidden;line-height:1;opacity:1}
 .textLayer span,.textLayer br{color:transparent;position:absolute;white-space:pre;cursor:text;transform-origin:0 0}
 .textLayer ::selection{background:rgba(110,143,184,.45)}
@@ -206,7 +211,7 @@ details.help code{background:#151A20;padding:1px 5px;border-radius:4px;color:var
   </div>
   <div id="stage">
     <div id="viewer"></div>
-    <div id="pdfWrap"><div id="pdfPage"><canvas id="pdfCanvas"></canvas><div id="pdfText" class="textLayer"></div><div id="pdfMarks"></div></div></div>
+    <div id="pdfWrap"><div id="pdfDoc"></div></div>
     <div class="loading" id="rload">책을 여는 중…</div>
   </div>
   <div class="rbar bottom" id="rbot">
@@ -235,6 +240,9 @@ details.help code{background:#151A20;padding:1px 5px;border-radius:4px;color:var
   <h3>보기 설정</h3>
   <div class="field"><label>배경</label><div class="seg" id="segTheme">
     <button data-v="paper">종이</button><button data-v="sepia">세피아</button><button data-v="night">야간</button></div></div>
+  <div class="field"><label>읽기 방식</label><div class="seg" id="segMode">
+    <button data-v="page">쪽 넘기기</button><button data-v="scroll">계속 스크롤</button></div>
+    <div class="hint">계속 스크롤에서는 쪽 경계 없이 이어져서, 두 쪽에 걸친 문장도 한 번에 선택할 수 있습니다.</div></div>
   <div id="epubOnly">
     <div class="field"><label>글꼴</label><div class="seg" id="segFont">
       <button data-v="serif">명조</button><button data-v="sans">고딕</button></div></div>
@@ -244,8 +252,13 @@ details.help code{background:#151A20;padding:1px 5px;border-radius:4px;color:var
       <button data-v="auto">자동</button><button data-v="none">항상 한 쪽</button></div></div>
   </div>
   <div id="pdfOnly" hidden>
+    <div class="field"><label>화면 돌리기</label><div class="seg">
+      <button id="rotL">왼쪽으로 90°</button><button id="rotR">오른쪽으로 90°</button>
+      <button id="rot0">원래대로</button></div>
+      <div class="hint">가로로 스캔된 책을 세로로 세워서 볼 때 쓰세요. 책마다 따로 기억합니다.</div></div>
     <div class="field"><label>PDF 화면 맞춤</label><div class="seg" id="segFit">
-      <button data-v="page">한 쪽 전체</button><button data-v="width">폭에 맞춤</button></div></div>
+      <button data-v="page">한 쪽 전체</button><button data-v="width">폭에 맞춤</button></div>
+      <div class="hint">쪽 넘기기 방식에서만 적용됩니다.</div></div>
     <div class="field"><label>이동</label>
       <div style="display:flex;gap:8px;align-items:center">
         <input id="pgJump" type="number" min="1" style="flex:1;padding:11px 13px;border-radius:9px;border:1px solid var(--line);background:#151A20;color:var(--text)">
@@ -363,7 +376,7 @@ const cfg={
   get view(){try{return JSON.parse(localStorage.getItem('view'))||{};}catch(e){return{};}},
   set view(v){localStorage.setItem('view',JSON.stringify(v));}
 };
-const view=Object.assign({theme:'paper',font:'serif',size:18,spread:'auto',fit:'page'},cfg.view);
+const view=Object.assign({theme:'paper',font:'serif',size:18,spread:'auto',fit:'page',mode:'page'},cfg.view);
 
 /* ---------- IndexedDB ---------- */
 let dbp;
@@ -665,7 +678,8 @@ $('#ceDel').onclick=()=>{
 /* ════════ 읽기 ════════ */
 let current=null,kind=null;
 let book=null,rendition=null,lastCfi=null;         // EPUB
-let pdfDoc=null,pdfPage=1,pdfScale=1,pdfRendering=false;  // PDF
+let pdfDoc=null,pdfPage=1,pdfScale=1,pdfRot=0,pdfObs=null,pdfScrollT=null;
+const pdfSizes=new Map();
 
 async function fetchBook(b){
   const c=await idbGet('files',b.id);
@@ -694,14 +708,18 @@ async function openBook(b){
     updateBmIcon();
   }catch(e){
     console.error(e);
-    $('#rload').textContent='책을 열지 못했습니다. 파일이 손상되었거나 너무 클 수 있습니다.';
+    if($('#rload').style.display!=='none')
+      $('#rload').textContent='책을 열지 못했습니다. 파일이 손상되었거나 너무 클 수 있습니다.';
   }
 }
 
 /* ---------- EPUB ---------- */
 async function openEpub(buf,i){
   book=ePub(buf);
-  rendition=book.renderTo('viewer',{width:'100%',height:'100%',flow:'paginated',spread:view.spread,minSpreadWidth:820,allowScriptedContent:false});
+  rendition=book.renderTo('viewer',{width:'100%',height:'100%',
+    flow:view.mode==='scroll'?'scrolled-doc':'paginated',
+    spread:view.mode==='scroll'?'none':view.spread,
+    minSpreadWidth:820,allowScriptedContent:false});
   rendition.themes.register('paper',{body:{background:'#FCFAF6',color:'#23262B'}});
   rendition.themes.register('sepia',{body:{background:'#F2E9D8',color:'#3B3226'}});
   rendition.themes.register('night',{body:{background:'#14171B',color:'#C3C7CC'}});
@@ -709,13 +727,16 @@ async function openEpub(buf,i){
   hookEpubContent();
   await book.ready;
   await rendition.display(i.cfi||undefined);
-  applyEpubMarks();
-  const key='loc:'+current.id;
-  const saved=await idbGet('locs',key);
-  if(saved){book.locations.load(saved);updateProgress();}
-  else book.locations.generate(1400).then(async()=>{try{await idbPut('locs',key,book.locations.save());}catch(e){}updateProgress();});
-  buildToc();
-  saveCover(current.id);
+  $('#rload').style.display='none';        // 본문이 나온 순간 안내를 걷는다
+  try{ applyEpubMarks(); }catch(e){ console.warn('표시 복원 실패',e); }
+  try{
+    const key='loc:'+current.id;
+    const saved=await idbGet('locs',key);
+    if(saved){book.locations.load(saved);updateProgress();}
+    else book.locations.generate(1400).then(async()=>{try{await idbPut('locs',key,book.locations.save());}catch(e){}updateProgress();});
+  }catch(e){ console.warn('진행률 계산 실패',e); }
+  try{ buildToc(); }catch(e){ console.warn('목차 읽기 실패',e); tocItems=[]; }
+  try{ saveCover(current.id); }catch(e){}
 }
 function applyTypography(){
   if(!rendition)return;
@@ -731,19 +752,46 @@ function hookEpubContent(){
     l.href='https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&family=Noto+Sans+KR:wght@400;500&display=swap';
     doc.head.appendChild(l);
     doc.addEventListener('click',e=>{
-      if(doc.getSelection&&String(doc.getSelection()).trim())return;
-      hideSel();
       const w=doc.documentElement.clientWidth,x=e.clientX;
+      const has=doc.getSelection&&String(doc.getSelection()).trim();
+      if(has){
+        // 선택해 둔 채로 가장자리를 누르면 쪽만 넘기고 선택은 살려 둔다
+        if(view.mode!=='scroll'&&(x<w*0.28||x>w*0.72)){
+          hideSel();
+          (x<w*0.28?rendition.prev():rendition.next()).then(()=>setTimeout(()=>refreshSel(contents),140));
+        }
+        return;
+      }
+      hideSel();
+      if(view.mode==='scroll')return toggleBars();
       if(x<w*0.28)turn('prev');else if(x>w*0.72)turn('next');else toggleBars();
     });
     let sx=0,sy=0,st=0;
     doc.addEventListener('touchstart',e=>{const t=e.changedTouches[0];sx=t.clientX;sy=t.clientY;st=Date.now();},{passive:true});
     doc.addEventListener('touchend',e=>{
+      if(view.mode==='scroll')return;
       if(doc.getSelection&&String(doc.getSelection()).trim())return;
       const t=e.changedTouches[0],dx=t.clientX-sx,dy=t.clientY-sy;
       if(Date.now()-st<600&&Math.abs(dx)>55&&Math.abs(dx)>Math.abs(dy)*1.6)turn(dx<0?'next':'prev');
     },{passive:true});
     doc.addEventListener('keydown',onKey);
+
+    /* 글을 끌어 선택하는 중에 좌우 끝에 닿으면 쪽을 넘겨준다.
+       쪽이 넘어가도 누르고 있는 손가락·마우스는 그대로라 선택이 이어진다. */
+    let dragging=false,lastTurn=0;
+    const edge=(x)=>{
+      if(view.mode==='scroll')return;
+      const sel=contents.window.getSelection();
+      if(!sel||sel.isCollapsed)return;
+      const w=doc.documentElement.clientWidth,now=Date.now();
+      if(now-lastTurn<500)return;
+      if(x>w-44){lastTurn=now;rendition.next().then(()=>setTimeout(()=>refreshSel(contents),120));}
+      else if(x<44){lastTurn=now;rendition.prev().then(()=>setTimeout(()=>refreshSel(contents),120));}
+    };
+    doc.addEventListener('mousedown',()=>{dragging=true;});
+    doc.addEventListener('mousemove',e=>{if(dragging)edge(e.clientX);});
+    doc.addEventListener('mouseup',()=>{dragging=false;});
+    doc.addEventListener('touchmove',e=>{const t=e.touches&&e.touches[0];if(t)edge(t.clientX);},{passive:true});
   });
   rendition.on('relocated',loc=>{
     lastCfi=loc.start.cfi;updateProgress();
@@ -751,18 +799,90 @@ function hookEpubContent(){
     updateBmIcon();
   });
   rendition.on('selected',(cfiRange,contents)=>{
-    const text=String(contents.window.getSelection()).trim();
+    const trimmed=view.mode!=='scroll'&&clampToPage(contents);
+    const sel=contents.window.getSelection();
+    const text=String(sel).trim();
     if(!text)return;
+    let cfi=cfiRange;
+    if(trimmed){ try{ cfi=contents.cfiFromRange(sel.getRangeAt(0)); }catch(e){} }
     let rect=null;
     try{
-      const r=contents.range(cfiRange).getBoundingClientRect();
+      const r=(trimmed?sel.getRangeAt(0):contents.range(cfiRange)).getBoundingClientRect();
       const f=contents.document.defaultView.frameElement.getBoundingClientRect();
       rect={top:r.top+f.top,bottom:r.bottom+f.top,left:r.left+f.left,width:r.width};
     }catch(e){}
-    pending={cfi:cfiRange,text,contents};
+    pending={cfi,text,contents};
     showSel(rect);
   });
 }
+/* 선택이 화면 밖(다음 쪽 이후)까지 번졌을 때, 지금 보이는 쪽 끝까지로 줄인다 */
+function textNodesIn(range){
+  const anc=range.commonAncestorContainer;
+  const root=anc.nodeType===1?anc:anc.parentNode;
+  const doc=root.ownerDocument;
+  const w=doc.createTreeWalker(root,NodeFilter.SHOW_TEXT,null);
+  const out=[];
+  while(w.nextNode()){
+    const n=w.currentNode;
+    try{ if(range.intersectsNode(n)&&n.textContent.length)out.push(n); }catch(e){}
+  }
+  return out;
+}
+function clampToPage(contents){
+  try{
+    const doc=contents.document,sel=contents.window.getSelection();
+    if(!sel||!sel.rangeCount)return false;
+    const r=sel.getRangeAt(0);
+    const w=doc.documentElement.clientWidth;
+    const rects=[...r.getClientRects()];
+    if(!rects.length)return false;
+    if(Math.max(...rects.map(x=>x.right))<=w+2)return false;   // 이미 화면 안
+    const nodes=textNodesIn(r);
+    if(!nodes.length)return false;
+    const probe=doc.createRange();
+    probe.setStart(r.startContainer,r.startOffset);
+    const inView=(n,off)=>{
+      try{probe.setEnd(n,off);}catch(e){return false;}
+      const rs=[...probe.getClientRects()];
+      if(!rs.length)return true;
+      return Math.max(...rs.map(x=>x.right))<=w+2;
+    };
+    let bestNode=null,bestOff=0;
+    for(const n of nodes){
+      const len=n.textContent.length;
+      const from=(n===r.startContainer)?r.startOffset:0;
+      const to=(n===r.endContainer)?r.endOffset:len;
+      if(to<=from)continue;
+      if(inView(n,to)){bestNode=n;bestOff=to;continue;}
+      let lo=from,hi=to,ans=from;
+      while(lo<=hi){const mid=(lo+hi)>>1;if(inView(n,mid)){ans=mid;lo=mid+1;}else hi=mid-1;}
+      bestNode=n;bestOff=ans;break;
+    }
+    if(!bestNode)return false;
+    if(bestNode===r.endContainer&&bestOff===r.endOffset)return false;
+    const nr=doc.createRange();
+    nr.setStart(r.startContainer,r.startOffset);
+    nr.setEnd(bestNode,bestOff);
+    if(String(nr).trim()===''){return false;}
+    sel.removeAllRanges();sel.addRange(nr);
+    return true;
+  }catch(e){console.warn('선택 범위 정리 실패',e);return false;}
+}
+/* 쪽을 넘긴 뒤에도 남아 있는 선택을 다시 집어 메뉴를 띄운다 */
+function refreshSel(contents){
+  try{
+    const sel=contents.window.getSelection();
+    const text=String(sel).trim();
+    if(!text||!sel.rangeCount)return hideSel();
+    const range=sel.getRangeAt(0);
+    const cfi=contents.cfiFromRange(range);
+    const r=range.getBoundingClientRect();
+    const f=contents.document.defaultView.frameElement.getBoundingClientRect();
+    pending={cfi,text,contents};
+    showSel({top:r.top+f.top,bottom:r.bottom+f.top,left:r.left+f.left,width:r.width});
+  }catch(e){}
+}
+
 function applyEpubMarks(){
   const i=bookInfo(current);
   i.marks.forEach(m=>drawEpubMark(m));
@@ -784,7 +904,12 @@ function removeEpubMark(m){
 }
 function buildToc(){
   tocItems=[];
-  const walk=(items,d)=>items.forEach(it=>{tocItems.push({label:it.label.trim(),href:it.href,d});if(it.subitems&&it.subitems.length)walk(it.subitems,d+1);});
+  const walk=(items,d)=>(items||[]).forEach(it=>{
+    if(!it)return;
+    const label=String(it.label==null?'':it.label).trim();
+    if(label&&it.href)tocItems.push({label,href:it.href,d});
+    if(it.subitems&&it.subitems.length)walk(it.subitems,d+1);
+  });
   if(book.navigation&&book.navigation.toc)walk(book.navigation.toc,0);
 }
 let tocItems=[];
@@ -801,69 +926,112 @@ async function saveCover(id){
 async function openPdf(buf,i){
   pdfDoc=await pdfjsLib.getDocument({data:buf.slice(0)}).promise;
   pdfPage=Math.min(Math.max(1,i.page||1),pdfDoc.numPages);
+  pdfRot=((bookState(current.id).rot||0)%360+360)%360;
   $('#pgJump').max=pdfDoc.numPages;
   tocItems=[];
   try{
     const out=await pdfDoc.getOutline();
-    if(out)for(const it of out)tocItems.push({label:it.title,href:it.dest,d:0,pdf:true});
+    if(out)for(const it of out){
+      const label=String(it&&it.title!=null?it.title:'').trim();
+      if(label&&it.dest!=null)tocItems.push({label,href:it.dest,d:0,pdf:true});
+    }
   }catch(e){}
-  await renderPdfPage();
+  await buildPdfLayout();
 }
-async function renderPdfPage(){
-  if(!pdfDoc||pdfRendering)return;
-  pdfRendering=true;
-  try{
-    const page=await pdfDoc.getPage(pdfPage);
-    const wrap=$('#pdfWrap'),holder=$('#pdfPage');
-    const vp1=page.getViewport({scale:1});
-    const availW=wrap.clientWidth-16, availH=wrap.clientHeight-16;
-    let scale=availW/vp1.width;
-    if(view.fit==='page')scale=Math.min(scale,availH/vp1.height);
-    pdfScale=scale;
-    const vp=page.getViewport({scale});
-    const dpr=Math.min(window.devicePixelRatio||1,2);
-    const cv=$('#pdfCanvas'),ctx=cv.getContext('2d');
-    cv.width=Math.floor(vp.width*dpr);cv.height=Math.floor(vp.height*dpr);
-    holder.style.width=Math.floor(vp.width)+'px';
-    holder.style.height=Math.floor(vp.height)+'px';
-    holder.style.margin=view.fit==='page'?'8px auto':'8px auto';
-    cv.style.height=Math.floor(vp.height)+'px';
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-    ctx.fillStyle=view.theme==='night'?'#14171B':view.theme==='sepia'?'#F2E9D8':'#FFFFFF';
-    ctx.fillRect(0,0,vp.width,vp.height);
-    await page.render({canvasContext:ctx,viewport:vp,background:'rgba(0,0,0,0)'}).promise;
-    if(view.theme==='night'){cv.style.filter='invert(1) hue-rotate(180deg) brightness(.92)';}
-    else if(view.theme==='sepia'){cv.style.filter='sepia(.28) brightness(.99)';}
-    else cv.style.filter='none';
+const pgEl=n=>$('#pdfDoc').querySelector('.pg[data-p="'+n+'"]');
 
-    const tl=$('#pdfText');tl.innerHTML='';
-    tl.style.setProperty('--scale-factor',scale);
+async function buildPdfLayout(){
+  if(!pdfDoc)return;
+  const host=$('#pdfDoc'),wrap=$('#pdfWrap');
+  if(pdfObs){pdfObs.disconnect();pdfObs=null;}
+  host.innerHTML='';pdfSizes.clear();
+  const p=await pdfDoc.getPage(pdfPage);
+  const rot=(((p.rotate||0)+pdfRot)%360+360)%360;
+  const v1=p.getViewport({scale:1,rotation:rot});
+  const availW=Math.max(200,wrap.clientWidth-14),availH=Math.max(200,wrap.clientHeight-14);
+  let scale=availW/v1.width;
+  if(view.fit==='page'&&view.mode!=='scroll')scale=Math.min(scale,availH/v1.height);
+  pdfScale=scale;
+  const W=Math.round(v1.width*scale),H=Math.round(v1.height*scale);
+  if(view.mode==='scroll'){
+    const frag=document.createDocumentFragment();
+    for(let n=1;n<=pdfDoc.numPages;n++)frag.appendChild(makePg(n,W,H));
+    host.appendChild(frag);
+    pdfObs=new IntersectionObserver(es=>{
+      es.forEach(e=>{
+        const n=+e.target.dataset.p;
+        if(e.isIntersecting)renderPg(n);
+        else freePg(n);
+      });
+    },{root:wrap,rootMargin:'900px 0px'});
+    host.querySelectorAll('.pg').forEach(el=>pdfObs.observe(el));
+    const el=pgEl(pdfPage);
+    if(el)wrap.scrollTop=Math.max(0,el.offsetTop-6);
+    await renderPg(pdfPage);
+  }else{
+    host.appendChild(makePg(pdfPage,W,H));
+    await renderPg(pdfPage);
+    wrap.scrollTop=0;
+  }
+  savePdfPos();
+}
+function makePg(n,W,H){
+  const d=document.createElement('div');
+  d.className='pg';d.dataset.p=n;
+  const sz=pdfSizes.get(n);
+  d.style.width=(sz?sz.w:W)+'px';d.style.height=(sz?sz.h:H)+'px';
+  d.innerHTML='<canvas></canvas><div class="textLayer"></div><div class="mk"></div>';
+  return d;
+}
+async function renderPg(n){
+  const el=pgEl(n);
+  if(!el||el.dataset.done==='1'||el.dataset.busy==='1')return;
+  el.dataset.busy='1';
+  try{
+    const page=await pdfDoc.getPage(n);
+    const rot=(((page.rotate||0)+pdfRot)%360+360)%360;
+    const vp=page.getViewport({scale:pdfScale,rotation:rot});
+    const W=Math.round(vp.width),H=Math.round(vp.height);
+    pdfSizes.set(n,{w:W,h:H});
+    el.style.width=W+'px';el.style.height=H+'px';
+    const cv=el.querySelector('canvas'),ctx=cv.getContext('2d');
+    const dpr=Math.min(window.devicePixelRatio||1,2);
+    cv.width=Math.floor(vp.width*dpr);cv.height=Math.floor(vp.height*dpr);
+    cv.style.width=W+'px';cv.style.height=H+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,vp.width,vp.height);
+    await page.render({canvasContext:ctx,viewport:vp}).promise;
+    cv.style.filter=view.theme==='night'?'invert(1) hue-rotate(180deg) brightness(.92)'
+                   :view.theme==='sepia'?'sepia(.3) brightness(.99)':'none';
+    const tl=el.querySelector('.textLayer');
+    tl.innerHTML='';tl.style.setProperty('--scale-factor',pdfScale);
     const tc=await page.getTextContent();
     await pdfjsLib.renderTextLayer({textContentSource:tc,container:tl,viewport:vp,textDivs:[]}).promise;
-
-    drawPdfMarks();
-    const s=bookState(current.id);
-    s.page=pdfPage;s.pct=Math.round(pdfPage/pdfDoc.numPages*100);s.at=Date.now();
-    saveLocal();queueSync();
-    $('#rfill').style.width=s.pct+'%';
-    $('#rnum').textContent=`${pdfPage}/${pdfDoc.numPages}`;
-    $('#pgJump').value=pdfPage;
-    wrap.scrollTop=0;
-    updateBmIcon();
-  }finally{pdfRendering=false;}
+    drawPdfMarks(n);
+    el.dataset.done='1';
+  }catch(e){console.warn('쪽 그리기 실패',n,e);}
+  finally{el.dataset.busy='';}
 }
-function drawPdfMarks(){
-  const box=$('#pdfMarks');box.innerHTML='';
-  const i=bookInfo(current);
-  i.marks.filter(m=>m.page===pdfPage).forEach(m=>{
+function freePg(n){
+  const el=pgEl(n);
+  if(!el||el.dataset.done!=='1')return;
+  if(Math.abs(n-pdfPage)<3)return;              // 보고 있는 근처는 남겨둔다
+  const cv=el.querySelector('canvas');
+  cv.width=0;cv.height=0;cv.style.width='';cv.style.height='';
+  el.querySelector('.textLayer').innerHTML='';
+  el.dataset.done='';
+}
+function drawPdfMarks(n){
+  const el=pgEl(n);if(!el)return;
+  const box=el.querySelector('.mk');box.innerHTML='';
+  (bookInfo(current).marks||[]).filter(m=>m.page===n).forEach(m=>{
     (m.rects||[]).forEach(r=>{
       const d=document.createElement('div');
-      d.style.left=(r[0]*100)+'%';d.style.top=(r[1]*100)+'%';
-      d.style.width=(r[2]*100)+'%';
+      d.style.left=(r[0]*100)+'%';d.style.width=(r[2]*100)+'%';
       if(m.style==='underline'){
-        d.style.top=((r[1]+r[3])*100-0.4)+'%';d.style.height='2px';d.style.background=m.color;
+        d.style.top=((r[1]+r[3])*100)+'%';d.style.height='2px';d.style.background=m.color;
       }else{
-        d.style.height=(r[3]*100)+'%';d.style.background=m.color;
+        d.style.top=(r[1]*100)+'%';d.style.height=(r[3]*100)+'%';d.style.background=m.color;
         d.style.opacity=view.theme==='night'?'.45':'.34';
         d.style.mixBlendMode=view.theme==='night'?'screen':'multiply';
       }
@@ -871,9 +1039,40 @@ function drawPdfMarks(){
     });
   });
 }
+function redrawPdfMarks(){ if(kind==='pdf')$('#pdfDoc').querySelectorAll('.pg').forEach(el=>drawPdfMarks(+el.dataset.p)); }
+function savePdfPos(){
+  if(!pdfDoc||!current)return;
+  const s=bookState(current.id);
+  s.page=pdfPage;s.pct=Math.round(pdfPage/pdfDoc.numPages*100);s.rot=pdfRot;s.at=Date.now();
+  saveLocal();queueSync();
+  $('#rfill').style.width=s.pct+'%';
+  $('#rnum').textContent=pdfPage+'/'+pdfDoc.numPages;
+  $('#pgJump').value=pdfPage;
+  updateBmIcon();
+}
+function gotoPdfPage(n){
+  if(!pdfDoc)return;
+  pdfPage=Math.min(Math.max(1,n),pdfDoc.numPages);
+  if(view.mode==='scroll'){
+    const el=pgEl(pdfPage);
+    if(el){$('#pdfWrap').scrollTop=Math.max(0,el.offsetTop-6);renderPg(pdfPage);savePdfPos();}
+    else buildPdfLayout();
+  }else buildPdfLayout();
+}
+$('#pdfWrap').addEventListener('scroll',()=>{
+  if(kind!=='pdf'||view.mode!=='scroll')return;
+  clearTimeout(pdfScrollT);
+  pdfScrollT=setTimeout(()=>{
+    const wrap=$('#pdfWrap'),line=wrap.scrollTop+wrap.clientHeight*0.35;
+    let best=1;
+    $('#pdfDoc').querySelectorAll('.pg').forEach(el=>{ if(el.offsetTop<=line)best=+el.dataset.p; });
+    if(best!==pdfPage){pdfPage=best;savePdfPos();}
+  },180);
+},{passive:true});
 $('#pdfWrap').addEventListener('click',e=>{
   if(String(window.getSelection()).trim())return;
   hideSel();
+  if(view.mode==='scroll')return toggleBars();
   const w=$('#pdfWrap').clientWidth,x=e.clientX;
   if(x<w*0.26)turn('prev');else if(x>w*0.74)turn('next');else toggleBars();
 });
@@ -885,16 +1084,23 @@ function pdfSelection(){
   const text=String(sel).trim();
   if(!text||!sel.rangeCount)return hideSel();
   const range=sel.getRangeAt(0);
-  const holder=$('#pdfPage'),box=holder.getBoundingClientRect();
-  const rects=[...range.getClientRects()].filter(r=>r.width>1&&r.height>1);
+  let node=range.startContainer;
+  if(node.nodeType===3)node=node.parentElement;
+  const el=node&&node.closest?node.closest('.pg'):null;
+  if(!el)return hideSel();
+  const n=+el.dataset.p,box=el.getBoundingClientRect();
+  const rects=[...range.getClientRects()]
+    .filter(r=>r.width>1&&r.height>1&&r.bottom>box.top-2&&r.top<box.bottom+2);
   if(!rects.length)return hideSel();
-  pending={page:pdfPage,text,rects:rects.map(r=>[(r.left-box.left)/box.width,(r.top-box.top)/box.height,r.width/box.width,r.height/box.height])};
-  const first=rects[0],last=rects[rects.length-1];
-  showSel({top:first.top,bottom:last.bottom,left:first.left,width:first.width});
+  pending={page:n,text,
+    rects:rects.map(r=>[(r.left-box.left)/box.width,(r.top-box.top)/box.height,r.width/box.width,r.height/box.height])};
+  const f=rects[0],l=rects[rects.length-1];
+  showSel({top:f.top,bottom:l.bottom,left:f.left,width:f.width});
 }
 let pdfSx=0,pdfSy=0,pdfSt=0;
 $('#pdfWrap').addEventListener('touchstart',e=>{const t=e.changedTouches[0];pdfSx=t.clientX;pdfSy=t.clientY;pdfSt=Date.now();},{passive:true});
 $('#pdfWrap').addEventListener('touchend',e=>{
+  if(view.mode==='scroll')return;
   if(String(window.getSelection()).trim())return;
   const t=e.changedTouches[0],dx=t.clientX-pdfSx,dy=t.clientY-pdfSy;
   if(Date.now()-pdfSt<600&&Math.abs(dx)>55&&Math.abs(dx)>Math.abs(dy)*1.6)turn(dx<0?'next':'prev');
@@ -903,9 +1109,12 @@ $('#pdfWrap').addEventListener('touchend',e=>{
 /* ---------- 공통 이동 ---------- */
 function turn(dir){
   if(kind==='pdf'){
-    const n=pdfPage+(dir==='next'?1:-1);
-    if(n<1||n>pdfDoc.numPages)return;
-    pdfPage=n;renderPdfPage();
+    if(view.mode==='scroll'){
+      const w=$('#pdfWrap');
+      w.scrollBy({top:(dir==='next'?1:-1)*(w.clientHeight-60),behavior:'smooth'});
+      return;
+    }
+    gotoPdfPage(pdfPage+(dir==='next'?1:-1));
     return;
   }
   const v=$('#viewer');v.classList.add('turning');
@@ -965,7 +1174,7 @@ function addMark(style,color,silent){
   if(kind==='epub'){m.cfi=pending.cfi;m.chapter=currentChapter();}
   else{m.page=pending.page;m.rects=pending.rects;}
   s.marks.push(m);touch(current.id);
-  if(kind==='epub')drawEpubMark(m);else drawPdfMarks();
+  if(kind==='epub')drawEpubMark(m);else drawPdfMarks(m.page);
   clearSelection();hideSel();
   if(!silent)toast(style==='underline'?'밑줄을 그었습니다':'하이라이트했습니다');
   return m.id;
@@ -1003,7 +1212,7 @@ $('#noteSave').onclick=()=>{
   if(changed&&kind==='epub')removeEpubMark(m);
   m.note=$('#noteText').value.trim();m.color=noteColor;m.at=Date.now();
   touch(current.id);
-  if(kind==='epub'){if(changed)drawEpubMark(m);}else drawPdfMarks();
+  if(kind==='epub'){if(changed)drawEpubMark(m);}else drawPdfMarks(m.page);
   closeSheet('sheetNote');toast('메모를 저장했습니다');
 };
 $('#noteDel').onclick=()=>{
@@ -1011,7 +1220,7 @@ $('#noteDel').onclick=()=>{
   if(kind==='epub')removeEpubMark(m);
   s.marks=s.marks.filter(x=>x.id!==noteId);
   touch(current.id);
-  if(kind==='pdf')drawPdfMarks();
+  if(kind==='pdf')redrawPdfMarks();
   closeSheet('sheetNote');toast('지웠습니다');
 };
 
@@ -1060,7 +1269,7 @@ function renderNoteList(){
           try{
             const dest=typeof it.href==='string'?await pdfDoc.getDestination(it.href):it.href;
             const idx=await pdfDoc.getPageIndex(dest[0]);
-            pdfPage=idx+1;renderPdfPage();
+            gotoPdfPage(idx+1);
           }catch(e){toast('이동할 수 없는 항목입니다');}
         }
       };
@@ -1107,7 +1316,7 @@ function renderNoteList(){
 }
 function jumpTo(m){
   if(kind==='epub'&&(m.cfi))rendition.display(m.cfi);
-  else if(kind==='pdf'&&m.page){pdfPage=m.page;renderPdfPage();}
+  else if(kind==='pdf'&&m.page)gotoPdfPage(m.page);
 }
 
 /* ---------- 바·설정 ---------- */
@@ -1126,14 +1335,16 @@ window.addEventListener('resize',()=>{
   clearTimeout(rsT);
   rsT=setTimeout(()=>{
     if(kind==='epub'&&rendition&&lastCfi)rendition.display(lastCfi);
-    if(kind==='pdf'&&pdfDoc)renderPdfPage();
+    if(kind==='pdf'&&pdfDoc)buildPdfLayout();
   },260);
 });
 function backToShelf(){
   saveLocal();syncState();hideSel();
   if(rendition){rendition.destroy();rendition=null;}
   if(book){book.destroy();book=null;}
+  if(pdfObs){pdfObs.disconnect();pdfObs=null;}
   if(pdfDoc){pdfDoc.destroy();pdfDoc=null;}
+  $('#pdfDoc').innerHTML='';pdfSizes.clear();
   current=null;kind=null;lastCfi=null;
   show('library');renderShelf();
 }
@@ -1147,18 +1358,51 @@ function syncViewUI(){
   $$('#segFont button').forEach(b=>b.classList.toggle('sel',b.dataset.v===view.font));
   $$('#segSpread button').forEach(b=>b.classList.toggle('sel',b.dataset.v===view.spread));
   $$('#segFit button').forEach(b=>b.classList.toggle('sel',b.dataset.v===view.fit));
+  $$('#segMode button').forEach(b=>b.classList.toggle('sel',b.dataset.v===view.mode));
   $('#fsNow').textContent=view.size+'px';
 }
-$$('#segTheme button').forEach(b=>b.onclick=()=>{view.theme=b.dataset.v;cfg.view=view;applyTheme();if(kind==='epub')applyTypography();else if(kind==='pdf')renderPdfPage();syncViewUI();});
+$$('#segTheme button').forEach(b=>b.onclick=()=>{
+  view.theme=b.dataset.v;cfg.view=view;applyTheme();syncViewUI();
+  if(kind==='epub')applyTypography();
+  else if(kind==='pdf'){
+    $('#pdfDoc').querySelectorAll('.pg').forEach(el=>{
+      const cv=el.querySelector('canvas');
+      cv.style.filter=view.theme==='night'?'invert(1) hue-rotate(180deg) brightness(.92)'
+                     :view.theme==='sepia'?'sepia(.3) brightness(.99)':'none';
+    });
+    redrawPdfMarks();
+  }
+});
+$$('#segMode button').forEach(b=>b.onclick=()=>{
+  view.mode=b.dataset.v;cfg.view=view;syncViewUI();
+  if(kind==='pdf')buildPdfLayout();
+  else if(kind==='epub')reopenEpub();
+});
+function reopenEpub(){
+  const b=current;
+  saveLocal();
+  if(rendition){rendition.destroy();rendition=null;}
+  if(book){book.destroy();book=null;}
+  openBook(b);
+}
+function rotate(delta){
+  if(kind!=='pdf')return;
+  pdfRot=delta===null?0:(((pdfRot+delta)%360)+360)%360;
+  bookState(current.id).rot=pdfRot;touch(current.id);
+  buildPdfLayout();
+}
+$('#rotL').onclick=()=>rotate(-90);
+$('#rotR').onclick=()=>rotate(90);
+$('#rot0').onclick=()=>rotate(null);
 $$('#segFont button').forEach(b=>b.onclick=()=>{view.font=b.dataset.v;cfg.view=view;applyTypography();syncViewUI();});
 $$('#segSpread button').forEach(b=>b.onclick=()=>{view.spread=b.dataset.v;cfg.view=view;syncViewUI();if(rendition){rendition.spread(view.spread,820);if(lastCfi)rendition.display(lastCfi);}});
-$$('#segFit button').forEach(b=>b.onclick=()=>{view.fit=b.dataset.v;cfg.view=view;syncViewUI();if(kind==='pdf')renderPdfPage();});
+$$('#segFit button').forEach(b=>b.onclick=()=>{view.fit=b.dataset.v;cfg.view=view;syncViewUI();if(kind==='pdf')buildPdfLayout();});
 $('#fsUp').onclick=()=>{view.size=Math.min(34,view.size+1);cfg.view=view;applyTypography();syncViewUI();};
 $('#fsDown').onclick=()=>{view.size=Math.max(12,view.size-1);cfg.view=view;applyTypography();syncViewUI();};
 $('#pgGo').onclick=()=>{
   const n=parseInt($('#pgJump').value,10);
   if(!pdfDoc||isNaN(n)||n<1||n>pdfDoc.numPages)return toast('쪽 번호를 확인해 주세요');
-  pdfPage=n;renderPdfPage();closeSheet('sheetView');
+  gotoPdfPage(n);closeSheet('sheetView');
 };
 
 /* ---------- 설정 시트 ---------- */
