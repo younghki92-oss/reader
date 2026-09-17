@@ -106,11 +106,6 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
 .nmark:hover{filter:brightness(1.12)}
 .hlrect{position:absolute;pointer-events:none;border-radius:2px}
 .hlrect.sel2{background:var(--brass);opacity:.34;box-shadow:0 0 0 1px rgba(200,164,92,.55)}
-.selmenu .tip{
-  display:none;align-items:center;padding:0 10px;font-size:12.5px;color:var(--muted);
-  max-width:150px;line-height:1.35
-}
-.selmenu.dock .tip{display:flex}
 #pdfDoc{padding:6px 0 30px}
 .pg{position:relative;margin:0 auto 10px;background:#fff;box-shadow:0 1px 8px rgba(0,0,0,.28)}
 .pg canvas{display:block}
@@ -131,20 +126,29 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
 .rbar .num{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 
 /* 선택 메뉴 */
-.selmenu{position:fixed;z-index:70;display:none;gap:3px;background:#0F1318;border:1px solid var(--line);border-radius:12px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.45)}
-.selmenu.on{display:flex}
-.selmenu.dock{
-  left:50%!important;transform:translateX(-50%);
-  top:calc(env(safe-area-inset-top) + 10px)!important;padding:7px;gap:4px;
+.selmenu{
+  position:fixed;z-index:70;display:none;flex-direction:column;
+  background:#20262E;border:1px solid var(--line);border-radius:14px;
+  padding:6px;box-shadow:0 14px 38px rgba(0,0,0,.55);min-width:198px;max-width:240px;
 }
-.selmenu.dock button{width:40px;height:40px}
-.selmenu button{width:34px;height:34px;border-radius:8px;display:grid;place-items:center}
-.selmenu button.wide{width:auto;padding:0 11px;font-size:13px;white-space:nowrap}
-@media (pointer:coarse){ .selmenu button{width:40px;height:40px} .selmenu button.wide{width:auto} }
-.selmenu button:hover{background:var(--shelf-hi)}
-.selmenu .sw{width:19px;height:19px;border-radius:50%;border:1px solid rgba(0,0,0,.25)}
-.selmenu svg{width:18px;height:18px;fill:none;stroke:var(--text);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.selmenu .sep{width:1px;background:var(--line);margin:4px 3px}
+.selmenu.on{display:flex}
+.selmenu .colors{display:flex;justify-content:space-between;gap:6px;padding:9px 10px 10px}
+.selmenu .colors button{
+  width:30px;height:30px;border-radius:50%;border:2px solid transparent;flex:0 0 auto;
+}
+.selmenu .colors button:hover{border-color:var(--text)}
+.selmenu .divider{height:1px;background:var(--line);margin:2px 4px 4px}
+.selmenu .item{
+  display:flex;align-items:center;gap:13px;padding:11px 12px;border-radius:9px;
+  font-size:14.5px;width:100%;text-align:left;color:var(--text);
+}
+.selmenu .item:hover{background:var(--shelf-hi)}
+.selmenu .item svg{
+  width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto;
+}
+.selmenu .item.quit{color:var(--muted);font-size:13.5px}
+.selmenu.off .colors button,.selmenu.off .item:not(.quit){opacity:.3;pointer-events:none}
 
 /* 시트 */
 .sheet{position:fixed;inset:0;z-index:40;background:rgba(10,13,16,.6);display:none;align-items:flex-end;justify-content:center}
@@ -384,7 +388,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
    EPUB + PDF / 하이라이트·밑줄·메모 / 책갈피 / 분류 관리
    ════════════════════════════════════════════ */
 
-const APP_VERSION='1.2 · 2026-09-17';
+const APP_VERSION='1.5 · 2026-09-17';
 const SCOPES='https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.appdata';
 const STATE_FILE='seojae-state.json';
 const DEFAULT_CID='176016755027-u2v546hup548s1lg6j99023u8n2d6e0i.apps.googleusercontent.com';
@@ -875,7 +879,7 @@ function hookEpubContent(){
     doc.head.appendChild(l);
     doc.addEventListener('click',e=>{
       if(sel2){
-        if(Date.now()-sel2.t<450)return;        // 길게 누른 직후의 클릭은 무시
+        if(Date.now()-sel2.t<320)return;        // 길게 누른 직후의 클릭은 무시
         setSel2End(contents,e.clientX,e.clientY);
         return;
       }
@@ -897,7 +901,7 @@ function hookEpubContent(){
       if(TOUCH){
         lpMoved=false;clearTimeout(lpT);
         const px=t.clientX,py=t.clientY;
-        lpT=setTimeout(()=>{ if(!lpMoved&&!sel2)startSel2(contents,px,py); },450);
+        lpT=setTimeout(()=>{ if(!lpMoved&&!sel2)startSel2(contents,px,py); },300);
       }
     },{passive:true});
     doc.addEventListener('touchmove',e=>{
@@ -1102,6 +1106,43 @@ function wordRangeAt(doc,x,y){
   const rr=doc.createRange();rr.setStart(node,a);rr.setEnd(node,b);
   return rr;
 }
+/* 누른 자리가 속한 문장 전체를 잡는다 — 길게 누르면 바로 색을 고를 수 있게 */
+function sentenceRangeAt(doc,x,y){
+  const w=wordRangeAt(doc,x,y);
+  if(!w)return null;
+  try{
+    const node=w.startContainer;
+    let block=node.parentNode;
+    while(block&&block.nodeType===1&&block.parentNode&&
+          getComputedStyle(block).display==='inline')block=block.parentNode;
+    if(!block)return w;
+    const tw=doc.createTreeWalker(block,NodeFilter.SHOW_TEXT,null);
+    let full='',map=[],found=-1;
+    while(tw.nextNode()){
+      const n=tw.currentNode,t=n.textContent;
+      for(let i=0;i<t.length;i++){
+        if(n===node&&i===w.startOffset&&found<0)found=map.length;
+        map.push([n,i]);
+      }
+      full+=t;
+    }
+    if(found<0)return w;
+    const isEnd=i=>/[.!?。！？]/.test(full[i]||'');
+    let a=found;
+    while(a>0&&!isEnd(a-1))a--;
+    while(a<full.length&&/[\s"'“‘\u00A0]/.test(full[a]))a++;
+    let b=found;
+    while(b<full.length&&!isEnd(b))b++;
+    if(b<full.length)b++;
+    while(b<full.length&&/["'”’)\]]/.test(full[b]))b++;
+    if(b<=a||a>=map.length)return w;
+    const s0=map[a],e0=map[Math.min(b,map.length)-1];
+    const r=doc.createRange();
+    r.setStart(s0[0],s0[1]);
+    r.setEnd(e0[0],e0[1]+1);
+    return String(r).trim()?r:w;
+  }catch(e){ return w; }
+}
 function sel2Range(){
   if(!sel2||!sel2.anchor)return null;
   const a=sel2.anchor,b=sel2.end||sel2.anchor;
@@ -1136,21 +1177,35 @@ function drawSel2(){
   });
 }
 function startSel2(contents,x,y){
-  const r=wordRangeAt(contents.document,x,y);
+  const r=sentenceRangeAt(contents.document,x,y);
   if(!r)return;
   sel2={contents,anchor:r,end:null,t:Date.now()};
   syncSel2();
   if(!localStorage.getItem('tapHelp')){
     localStorage.setItem('tapHelp','1');
-    toast('끝나는 곳을 누르세요. 다음 쪽까지 이어가려면 위 화살표를 쓰세요');
+    toast('문장이 잡혔습니다. 색을 고르거나, 더 넓히려면 끝 지점을 누르세요');
   }
 }
 function setSel2End(contents,x,y){
   if(!sel2)return;
-  const r=wordRangeAt(contents.document,x,y);
+  const r=sentenceRangeAt(contents.document,x,y);
   if(!r)return;
   sel2.end=r;
   syncSel2();
+}
+function sel2Rect(){
+  const rng=sel2Range();if(!rng)return null;
+  const doc=rng.startContainer.ownerDocument;
+  const fr=doc&&doc.defaultView&&doc.defaultView.frameElement;
+  if(!fr)return null;
+  const f=fr.getBoundingClientRect(),b=viewBox(fr);
+  const rects=[...rng.getClientRects()].filter(r=>r.width>0.5&&r.height>0.5);
+  if(!rects.length)return null;
+  const vis=rects.filter(r=>{const x=r.left+f.left;return x+r.width>=b.left-1&&x<=b.right+1;});
+  const use=vis.length?vis:rects;
+  const first=use[0],last=use[use.length-1];
+  return {top:first.top+f.top,bottom:last.bottom+f.top,
+          left:first.left+f.left,width:first.width};
 }
 function syncSel2(){
   const rng=sel2Range();
@@ -1159,7 +1214,7 @@ function syncSel2(){
     try{ pending={cfi:sel2.contents.cfiFromRange(rng),text:String(rng).trim(),contents:sel2.contents}; }
     catch(e){ pending=null; }
   }
-  drawSel2();showSel(null);
+  drawSel2();showSel(sel2Rect());
 }
 function cancelSel2(){ sel2=null;pending=null;hideSel();paintEpubMarks(); }
 
@@ -1478,83 +1533,74 @@ function updateProgress(){
 
 /* ---------- 선택 메뉴 ---------- */
 let pending=null;
-function turnKeepSel(dir){
-  if(kind!=='epub')return;
-  // 마우스로 끌어 고른 범위가 있으면 "이어서 고르기" 상태로 넘겨받는다
-  if(!sel2&&pending&&pending.contents){
-    try{
-      const c=pending.contents,ss=c.window.getSelection();
-      if(ss&&ss.rangeCount){
-        const r=ss.getRangeAt(0).cloneRange();
-        sel2={contents:c,anchor:r,end:r.cloneRange(),t:Date.now()};
-        try{ss.removeAllRanges();}catch(e){}
-      }
-    }catch(e){}
-  }
-  if(!sel2)return;
-  (dir==='next'?rendition.next():rendition.prev())
-    .then(()=>setTimeout(()=>{ if(sel2)syncSel2(); },180));
+function menuItem(label,svg,fn,cls){
+  const b=document.createElement('button');
+  b.className='item'+(cls?' '+cls:'');
+  b.innerHTML='<svg viewBox="0 0 24 24">'+svg+'</svg><span>'+label+'</span>';
+  b.onclick=fn;
+  return b;
 }
 function buildSelMenu(){
   const m=$('#selmenu');m.innerHTML='';
-  const prev=document.createElement('button');prev.title='이전 쪽 (선택 유지)';
-  prev.innerHTML='<svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>';
-  prev.className='pgbtn';prev.onclick=()=>turnKeepSel('prev');m.appendChild(prev);
-  const next=document.createElement('button');next.title='다음 쪽 (선택 유지)';
-  next.innerHTML='<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>';
-  next.className='pgbtn';next.onclick=()=>turnKeepSel('next');m.appendChild(next);
-  const sp0=document.createElement('div');sp0.className='sep pgbtn';m.appendChild(sp0);
-  const tip=document.createElement('span');tip.className='tip';tip.id='selTip';m.appendChild(tip);
+  const row=document.createElement('div');row.className='colors';
   MARK_COLORS.forEach(c=>{
-    const b=document.createElement('button');b.title='하이라이트';b.className='needsel';
-    b.innerHTML=`<span class="sw" style="background:${c}"></span>`;
+    const b=document.createElement('button');b.title='하이라이트';
+    b.style.background=c;
     b.onclick=()=>addMark('highlight',c);
-    m.appendChild(b);
+    row.appendChild(b);
   });
-  const sep=document.createElement('div');sep.className='sep';m.appendChild(sep);
-  const ul=document.createElement('button');ul.title='밑줄 (빨강)';
-  ul.innerHTML='<svg viewBox="0 0 24 24" style="stroke:'+UL_COLOR+'"><path d="M6 4v6a6 6 0 0 0 12 0V4M4 20h16"/></svg>';
-  ul.className='needsel';ul.onclick=()=>addMark('underline',UL_COLOR);m.appendChild(ul);
-  const nt=document.createElement('button');nt.title='메모 붙이기';
-  nt.innerHTML='<svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
-  nt.className='needsel';nt.onclick=()=>{const id=addMark('note',UL_COLOR,true);if(id)openNote(id);};m.appendChild(nt);
-  const cp=document.createElement('button');cp.title='복사';
-  cp.innerHTML='<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
-  cp.className='needsel';
-  cp.onclick=()=>{if(pending)navigator.clipboard.writeText(pending.text).then(()=>toast('복사했습니다'));clearSelection();hideSel();};
-  m.appendChild(cp);
-  const cx=document.createElement('button');cx.title='그만두기';cx.className='cancelbtn';
-  cx.innerHTML='<svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>';
-  cx.onclick=()=>cancelSel2();m.appendChild(cx);
+  const ulb=document.createElement('button');ulb.title='밑줄';
+  ulb.style.background='transparent';
+  ulb.style.border='2px solid '+UL_COLOR;
+  ulb.style.boxShadow='inset 0 -7px 0 -4px '+UL_COLOR;
+  ulb.onclick=()=>addMark('underline',UL_COLOR);
+  row.appendChild(ulb);
+  m.appendChild(row);
+
+  const dv=document.createElement('div');dv.className='divider';m.appendChild(dv);
+
+  m.appendChild(menuItem('메모 추가',
+    '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+    ()=>{const id=addMark('note',UL_COLOR,true);if(id)openNote(id);}));
+
+  m.appendChild(menuItem('번역',
+    '<path d="M4 5h10M9 3v2c0 4-2.5 7-5 8M6 10c1.5 3 4 5 7 6M14 21l4.5-11L23 21M16 17h5"/>',
+    ()=>{const t=pending&&pending.text;if(!t)return;
+      window.open('https://translate.google.com/?sl=auto&tl=ko&op=translate&text='+encodeURIComponent(t),'_blank');
+      cancelSel2();}));
+
+  m.appendChild(menuItem('사전',
+    '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+    ()=>{const t=pending&&pending.text;if(!t)return;
+      window.open('https://ko.dict.naver.com/#/search?query='+encodeURIComponent(t.slice(0,30)),'_blank');
+      cancelSel2();}));
+
+  m.appendChild(menuItem('복사',
+    '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
+    ()=>{if(pending)navigator.clipboard.writeText(pending.text).then(()=>toast('복사했습니다'));
+      clearSelection();hideSel();}));
+
+  m.appendChild(menuItem('그만두기',
+    '<path d="M18 6L6 18M6 6l12 12"/>',
+    ()=>cancelSel2(),'quit'));
 }
 function showSel(rect){
-  const m=$('#selmenu');m.classList.add('on');
-  // 쪽 넘김 화살표는 쪽 넘김 방식의 EPUB 에서만 쓸모가 있다
-  const useArrow=(kind==='epub'&&view.mode!=='scroll');
-  m.querySelectorAll('.pgbtn').forEach(b=>b.style.display=useArrow?'':'none');
-  const ready=!!pending;
-  m.querySelectorAll('.needsel').forEach(b=>{
-    b.style.opacity=ready?'1':'.28';
-    b.style.pointerEvents=ready?'':'none';
-  });
-  m.querySelectorAll('.cancelbtn').forEach(b=>b.style.display=(TOUCH||sel2)?'':'none');
-  const tipEl=m.querySelector('#selTip');
-  if(tipEl)tipEl.textContent=sel2?(ready?'색을 고르거나 끝 지점을 다시 누르세요':'끝나는 곳을 누르세요'):'색을 고르세요';
-  if(TOUCH){
-    m.classList.add('dock');
-    $('#rtop').classList.add('hide');barsOn=false;
-    m.style.left='';m.style.top='';
-    return;
-  }
-  m.classList.remove('dock');
-  const w=m.offsetWidth||250,h=m.offsetHeight||46;
+  const m=$('#selmenu');
+  m.classList.add('on');
+  m.classList.toggle('off',!pending);
+  const w=m.offsetWidth||200,h=m.offsetHeight||280;
+  const pad=8;
   let top,left;
   if(rect){
-    top=rect.top-h-10; if(top<8)top=Math.min(rect.bottom+10,window.innerHeight-h-8);
-    left=rect.left+rect.width/2-w/2;
-  }else{top=window.innerHeight/2-h;left=window.innerWidth/2-w/2;}
-  m.style.top=Math.max(8,Math.min(top,window.innerHeight-h-8))+'px';
-  m.style.left=Math.max(8,Math.min(left,window.innerWidth-w-8))+'px';
+    // 고른 글 바로 아래에, 자리가 모자라면 위에 붙인다
+    top=rect.bottom+8;
+    if(top+h>window.innerHeight-pad)top=rect.top-h-8;
+    left=rect.left;
+  }else{
+    top=window.innerHeight/2-h/2;left=window.innerWidth/2-w/2;
+  }
+  m.style.top=Math.max(pad,Math.min(top,window.innerHeight-h-pad))+'px';
+  m.style.left=Math.max(pad,Math.min(left,window.innerWidth-w-pad))+'px';
 }
 function hideSel(){$('#selmenu').classList.remove('on');pending=null;}
 function clearSelection(){
@@ -1901,6 +1947,13 @@ async function start(fresh){
   else await scanDrive();
 }
 
+let errT=0;
+window.addEventListener('error',e=>{
+  console.error(e.error||e.message);
+  if(Date.now()-errT<6000)return;
+  errT=Date.now();
+  toast('오류: '+String(e.message||'').slice(0,70));
+});
 window.addEventListener('load',async()=>{
   $('#cid').value=cfg.cid;$('#fid').value=cfg.fid;
   buildSelMenu();syncViewUI();
