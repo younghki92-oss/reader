@@ -384,7 +384,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
    EPUB + PDF / 하이라이트·밑줄·메모 / 책갈피 / 분류 관리
    ════════════════════════════════════════════ */
 
-const APP_VERSION='1.1 · 2026-09-17';
+const APP_VERSION='1.2 · 2026-09-17';
 const SCOPES='https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.appdata';
 const STATE_FILE='seojae-state.json';
 const DEFAULT_CID='176016755027-u2v546hup548s1lg6j99023u8n2d6e0i.apps.googleusercontent.com';
@@ -882,13 +882,7 @@ function hookEpubContent(){
       const bd=localBand(contents);
       const x=e.clientX, px=x+bd.f.left, py=e.clientY+bd.f.top;
       const has=doc.getSelection&&String(doc.getSelection()).trim();
-      if(has){
-        if(view.mode!=='scroll'&&(x<bd.l+(bd.r-bd.l)*0.28||x>bd.l+(bd.r-bd.l)*0.72)){
-          hideSel();
-          (x<bd.l+(bd.r-bd.l)*0.28?rendition.prev():rendition.next()).then(()=>setTimeout(()=>refreshSel(contents),140));
-        }
-        return;
-      }
+      if(has){ hideSel(); return; }   // 고른 글이 있으면 쪽을 넘기지 않는다
       hideSel();
       const hitId=markAt(px,py);
       if(hitId){ openNote(hitId); return; }          // 표시를 누르면 메모가 열린다
@@ -920,23 +914,42 @@ function hookEpubContent(){
     },{passive:true});
     doc.addEventListener('keydown',onKey);
 
-    /* 글을 끌어 선택하는 중에 좌우 끝에 닿으면 쪽을 넘겨준다.
-       쪽이 넘어가도 누르고 있는 손가락·마우스는 그대로라 선택이 이어진다. */
-    let dragging=false,lastTurn=0;
-    const edge=(x)=>{
-      if(view.mode==='scroll')return;
-      const sel=contents.window.getSelection();
-      if(!sel||sel.isCollapsed)return;
-      const bd=localBand(contents),now=Date.now();
-      if(now-lastTurn<520)return;
-      if(x>bd.r-48){lastTurn=now;rendition.next().then(()=>setTimeout(()=>refreshSel(contents),120));}
-      else if(x<bd.l+48){lastTurn=now;rendition.prev().then(()=>setTimeout(()=>refreshSel(contents),120));}
+    /* 마우스로 끌어 고르는 동안, 브라우저가 본문을 옆으로 밀어
+       쪽 위치가 어긋나는 것을 막는다. 쪽은 메뉴의 화살표로만 넘긴다. */
+    let dragging=false,lockEl=null,lockLeft=0,lockWinX=0;
+    const boxOf=fr=>{
+      let el=fr&&fr.parentElement;
+      while(el&&el!==document.body){
+        const st=getComputedStyle(el);
+        if(st.overflow!=='visible'||st.overflowX!=='visible')return el;
+        el=el.parentElement;
+      }
+      return null;
     };
-    doc.addEventListener('mousedown',()=>{dragging=true;});
-    doc.addEventListener('mousemove',e=>{if(dragging&&!TOUCH)edge(e.clientX);});
-    doc.addEventListener('mouseup',()=>{dragging=false;});
-    // 손가락은 제외한다. 안드로이드는 선택 손잡이를 끄는 동작을 웹에 알려주지 않아서
-    // 여기서 쪽을 넘기면 글을 고르는 도중에 화면이 넘어가 버린다.
+    const hold=()=>{
+      if(!dragging)return;
+      if(lockEl&&lockEl.scrollLeft!==lockLeft)lockEl.scrollLeft=lockLeft;
+      const w=doc.defaultView;
+      if(w&&w.scrollX!==lockWinX)w.scrollTo(lockWinX,w.scrollY);
+    };
+    doc.addEventListener('mousedown',()=>{
+      dragging=true;
+      const fr=doc.defaultView.frameElement;
+      lockEl=boxOf(fr);
+      lockLeft=lockEl?lockEl.scrollLeft:0;
+      lockWinX=doc.defaultView.scrollX||0;
+      if(lockEl)lockEl.addEventListener('scroll',hold);
+      doc.defaultView.addEventListener('scroll',hold);
+    });
+    doc.addEventListener('mousemove',hold);
+    const endDrag=()=>{
+      if(!dragging)return;
+      dragging=false;
+      if(lockEl)lockEl.removeEventListener('scroll',hold);
+      doc.defaultView.removeEventListener('scroll',hold);
+    };
+    doc.addEventListener('mouseup',endDrag);
+    doc.addEventListener('mouseleave',endDrag);
   });
   rendition.on('relocated',loc=>{
     lastCfi=loc.start.cfi;updateProgress();paintSoon();
@@ -1126,7 +1139,7 @@ function startSel2(contents,x,y){
   const r=wordRangeAt(contents.document,x,y);
   if(!r)return;
   sel2={contents,anchor:r,end:null,t:Date.now()};
-  pending=null;drawSel2();showSel(null);
+  syncSel2();
   if(!localStorage.getItem('tapHelp')){
     localStorage.setItem('tapHelp','1');
     toast('끝나는 곳을 누르세요. 다음 쪽까지 이어가려면 위 화살표를 쓰세요');
@@ -1137,29 +1150,18 @@ function setSel2End(contents,x,y){
   const r=wordRangeAt(contents.document,x,y);
   if(!r)return;
   sel2.end=r;
+  syncSel2();
+}
+function syncSel2(){
   const rng=sel2Range();
-  if(rng){
+  if(!rng||!String(rng).trim()){pending=null;}
+  else{
     try{ pending={cfi:sel2.contents.cfiFromRange(rng),text:String(rng).trim(),contents:sel2.contents}; }
     catch(e){ pending=null; }
   }
   drawSel2();showSel(null);
 }
 function cancelSel2(){ sel2=null;pending=null;hideSel();paintEpubMarks(); }
-
-/* 쪽을 넘긴 뒤에도 남아 있는 선택을 다시 집어 메뉴를 띄운다 */
-function refreshSel(contents){
-  try{
-    const sel=contents.window.getSelection();
-    const text=String(sel).trim();
-    if(!text||!sel.rangeCount)return hideSel();
-    const range=sel.getRangeAt(0);
-    const cfi=contents.cfiFromRange(range);
-    const r=range.getBoundingClientRect();
-    const f=contents.document.defaultView.frameElement.getBoundingClientRect();
-    pending={cfi,text,contents};
-    showSel({top:r.top+f.top,bottom:r.bottom+f.top,left:r.left+f.left,width:r.width});
-  }catch(e){}
-}
 
 /* ── 하이라이트·밑줄·메모를 직접 그린다 ───────────────────────
    epub.js 가 그려주는 방식은 쪽을 넘기면 좌표가 어긋나서 직접 얹는다. */
@@ -1478,14 +1480,20 @@ function updateProgress(){
 let pending=null;
 function turnKeepSel(dir){
   if(kind!=='epub')return;
-  if(sel2){
-    (dir==='next'?rendition.next():rendition.prev())
-      .then(()=>setTimeout(()=>{drawSel2();showSel(null);},180));
-    return;
+  // 마우스로 끌어 고른 범위가 있으면 "이어서 고르기" 상태로 넘겨받는다
+  if(!sel2&&pending&&pending.contents){
+    try{
+      const c=pending.contents,ss=c.window.getSelection();
+      if(ss&&ss.rangeCount){
+        const r=ss.getRangeAt(0).cloneRange();
+        sel2={contents:c,anchor:r,end:r.cloneRange(),t:Date.now()};
+        try{ss.removeAllRanges();}catch(e){}
+      }
+    }catch(e){}
   }
-  if(!pending||!pending.contents)return;
-  const c=pending.contents;
-  (dir==='next'?rendition.next():rendition.prev()).then(()=>setTimeout(()=>refreshSel(c),170));
+  if(!sel2)return;
+  (dir==='next'?rendition.next():rendition.prev())
+    .then(()=>setTimeout(()=>{ if(sel2)syncSel2(); },180));
 }
 function buildSelMenu(){
   const m=$('#selmenu');m.innerHTML='';
@@ -1529,9 +1537,9 @@ function showSel(rect){
     b.style.opacity=ready?'1':'.28';
     b.style.pointerEvents=ready?'':'none';
   });
-  m.querySelectorAll('.cancelbtn').forEach(b=>b.style.display=TOUCH?'':'none');
+  m.querySelectorAll('.cancelbtn').forEach(b=>b.style.display=(TOUCH||sel2)?'':'none');
   const tipEl=m.querySelector('#selTip');
-  if(tipEl)tipEl.textContent=ready?'색을 고르세요':'끝나는 곳을 누르세요 (쪽은 화살표로)';
+  if(tipEl)tipEl.textContent=sel2?(ready?'색을 고르거나 끝 지점을 다시 누르세요':'끝나는 곳을 누르세요'):'색을 고르세요';
   if(TOUCH){
     m.classList.add('dock');
     $('#rtop').classList.add('hide');barsOn=false;
