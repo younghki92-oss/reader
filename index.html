@@ -459,7 +459,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
    EPUB + PDF / 하이라이트·밑줄·메모 / 책갈피 / 분류 관리
    ════════════════════════════════════════════ */
 
-const APP_VERSION='2.1 · 2026-09-18';
+const APP_VERSION='2.2 · 2026-09-18';
 const SCOPES='https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.appdata';
 const STATE_FILE='seojae-state.json';
 const DEFAULT_CID='176016755027-u2v546hup548s1lg6j99023u8n2d6e0i.apps.googleusercontent.com';
@@ -1444,30 +1444,127 @@ async function translateText(text,tl){
   if(t2)return t2;
   throw new Error('fail');
 }
+/* ── 낱말 찾기 ────────────────────────────────────────────────
+   한국어는 조사가 붙은 채로 잡히므로 떼어 가며 찾고,
+   사전을 여러 곳 차례로 두드린 뒤 마지막에 번역으로 갈음한다. */
+const KO_TAILS=['으로부터','에게서','로부터','이라고','라고','에서','에게','한테','까지','부터',
+  '으로','이나','처럼','보다','마다','조차','밖에','이라','하고','와의','과의','에는','에도',
+  '을','를','은','는','이','가','의','에','도','만','로','와','과','나','랑','야'];
+function koForms(w){
+  const out=[w];
+  KO_TAILS.forEach(t=>{
+    if(w.length>t.length+1&&w.endsWith(t)){
+      const base=w.slice(0,-t.length);
+      if(base.length>=1&&!out.includes(base))out.push(base);
+    }
+  });
+  return out.slice(0,6);
+}
+function enForms(w){
+  const l=w.toLowerCase(),out=[l];
+  const add=x=>{ if(x&&x.length>2&&!out.includes(x))out.push(x); };
+  if(l.endsWith('ies'))add(l.slice(0,-3)+'y');
+  if(l.endsWith('es'))add(l.slice(0,-2));
+  if(l.endsWith('s'))add(l.slice(0,-1));
+  if(l.endsWith('ied'))add(l.slice(0,-3)+'y');
+  if(l.endsWith('ing')){
+    const st=l.slice(0,-3);
+    add(st);add(st+'e');
+    if(st.length>2&&st[st.length-1]===st[st.length-2])add(st.slice(0,-1));   // running → run
+  }
+  if(l.endsWith('ed')){
+    const st=l.slice(0,-2);
+    add(st);add(l.slice(0,-1));
+    if(st.length>2&&st[st.length-1]===st[st.length-2])add(st.slice(0,-1));   // stopped → stop
+  }
+  if(l.endsWith('ly'))add(l.slice(0,-2));
+  return out.slice(0,7);
+}
+function fmtDict(j,w){
+  let html='';
+  try{
+    (j[0].meanings||[]).slice(0,4).forEach(mn=>{
+      html+='<div class="defblk"><div class="pos">'+esc(mn.partOfSpeech||'')+'</div><ol>';
+      (mn.definitions||[]).slice(0,3).forEach(d=>{html+='<li>'+esc(d.definition||'')+'</li>';});
+      html+='</ol></div>';
+    });
+  }catch(e){}
+  return html;
+}
+async function wiktionary(lang,word){
+  const url='https://'+lang+'.wiktionary.org/w/api.php?action=query&format=json&origin=*'
+    +'&prop=extracts&explaintext=1&redirects=1&titles='+encodeURIComponent(word);
+  const r=await fetchT(url,7000);
+  if(!r.ok)return null;
+  const j=await r.json();
+  const pages=j&&j.query&&j.query.pages;
+  if(!pages)return null;
+  const k=Object.keys(pages)[0];
+  if(k==='-1')return null;
+  const ex=pages[k].extract;
+  return (ex&&ex.trim())?ex:null;
+}
+function fmtWik(ex,w){
+  const lines=ex.split('\n').map(x=>x.trim()).filter(Boolean).slice(0,40);
+  let html='',open=false,n=0;
+  lines.forEach(line=>{
+    const h=line.match(/^=+\s*(.+?)\s*=+$/);
+    if(h){
+      if(open){html+='</ol></div>';open=false;}
+      html+='<div class="defblk"><div class="pos">'+esc(h[1])+'</div><ol>';open=true;
+      return;
+    }
+    if(n>=12)return;
+    if(!open){html+='<div class="defblk"><ol>';open=true;}
+    html+='<li>'+esc(line.replace(/^[\*\#\s]+/,''))+'</li>';n++;
+  });
+  if(open)html+='</ol></div>';
+  return html||null;
+}
+async function koGloss(w){
+  try{
+    const ko=await Promise.race([translateText(w,'ko'),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('t')),6000))]);
+    return '<div class="defblk"><div class="pos">한국어 뜻</div><ol><li>'+esc(ko)+'</li></ol></div>';
+  }catch(e){ return ''; }
+}
 async function lookupWord(text){
-  const w=text.trim().split(/\s+/)[0].replace(/[^A-Za-z가-힣\-']/g,'');
-  if(/^[A-Za-z][A-Za-z\-']*$/.test(w)){
-    const r=await fetchT('https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(w),7000);
-    if(r.ok){
-      const j=await r.json();
-      let html='';
-      (j[0].meanings||[]).slice(0,4).forEach(mn=>{
-        html+='<div class="defblk"><div class="pos">'+esc(mn.partOfSpeech||'')+'</div><ol>';
-        (mn.definitions||[]).slice(0,3).forEach(d=>{html+='<li>'+esc(d.definition||'')+'</li>';});
-        html+='</ol></div>';
-      });
-      if(html){
-        try{
-          const ko=await Promise.race([translateText(w,'ko'),
-            new Promise((_,rej)=>setTimeout(()=>rej(new Error('t')),6000))]);
-          html+='<div class="defblk"><div class="pos">한국어 뜻</div><ol><li>'+esc(ko)+'</li></ol></div>';
-        }catch(e){}
-        return html;
-      }
+  const raw=(text||'').trim().split(/\s+/)[0]
+    .replace(/[^A-Za-z가-힣\u3131-\u318E\-']/g,'');
+  if(!raw)return '<div class="defblk"><ol><li>낱말을 알아보지 못했습니다.</li></ol></div>';
+  const isEn=/^[A-Za-z][A-Za-z\-']*$/.test(raw);
+  const forms=isEn?enForms(raw):koForms(raw);
+
+  if(isEn){
+    for(const w of forms){
+      try{
+        const r=await fetchT('https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(w),6000);
+        if(r.ok){
+          const html=fmtDict(await r.json(),w);
+          if(html)return (w!==raw?'<div class="findnote">'+esc(raw)+' → '+esc(w)+'</div>':'')
+                        +html+await koGloss(w);
+        }
+      }catch(e){}
     }
   }
-  return '<div class="defblk"><div class="pos">뜻</div><ol><li>'
-    +esc(await translateText(text,hasLatin(text)?'ko':'en'))+'</li></ol></div>';
+  const lang=isEn?'en':'ko';
+  for(const w of forms){
+    try{
+      const ex=await wiktionary(lang,w);
+      if(ex){
+        const html=fmtWik(ex,w);
+        if(html)return (w!==raw?'<div class="findnote">'+esc(raw)+' → '+esc(w)+'</div>':'')
+                      +html+(isEn?await koGloss(w):'');
+      }
+    }catch(e){}
+  }
+  try{
+    const t=await Promise.race([translateText(raw,isEn?'ko':'en'),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('t')),8000))]);
+    return '<div class="findnote">사전에 없어 번역으로 보여 드립니다</div>'
+      +'<div class="defblk"><ol><li>'+esc(t)+'</li></ol></div>';
+  }catch(e){}
+  return '<div class="defblk"><ol><li>뜻을 찾지 못했습니다. 아래 "브라우저에서 열기"로 확인해 보세요.</li></ol></div>';
 }
 $('#paneClose').onclick=()=>{$('#pane').classList.remove('on');cancelSel2();};
 $('#paneLang').onchange=()=>runPane();
