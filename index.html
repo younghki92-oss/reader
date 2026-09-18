@@ -459,7 +459,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
    EPUB + PDF / 하이라이트·밑줄·메모 / 책갈피 / 분류 관리
    ════════════════════════════════════════════ */
 
-const APP_VERSION='2.0 · 2026-09-18';
+const APP_VERSION='2.1 · 2026-09-18';
 const SCOPES='https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.appdata';
 const STATE_FILE='seojae-state.json';
 const DEFAULT_CID='176016755027-u2v546hup548s1lg6j99023u8n2d6e0i.apps.googleusercontent.com';
@@ -1401,23 +1401,33 @@ function placePane(){
   el.style.left=Math.max(pad,Math.min(left,window.innerWidth-w-pad))+'px';
 }
 const hasLatin=t=>/[A-Za-z]/.test(t);
+/* 응답이 없으면 정해진 시간에 끊는다 — 없으면 "찾는 중"에서 멈춘다 */
+function fetchT(url,ms){
+  const c=new AbortController();
+  const timer=setTimeout(()=>c.abort(),ms||7000);
+  return fetch(url,{signal:c.signal}).finally(()=>clearTimeout(timer));
+}
 async function runPane(){
   const out=$('#paneOut');
+  const guard=new Promise((_,rej)=>setTimeout(()=>rej(new Error('시간 초과')),16000));
   try{
     if(paneMode==='tr'){
-      out.textContent=await translateText(paneText,$('#paneLang').value);
+      out.textContent=await Promise.race([translateText(paneText,$('#paneLang').value),guard]);
     }else{
-      out.innerHTML=await lookupWord(paneText);
+      out.innerHTML=await Promise.race([lookupWord(paneText),guard]);
     }
   }catch(e){
-    out.textContent='가져오지 못했습니다. 인터넷 연결을 확인하시거나 아래 "브라우저에서 열기"를 눌러 보세요.';
+    console.warn('번역/사전 실패',e);
+    out.textContent=(e&&e.message==='시간 초과')
+      ? '응답이 너무 늦어 멈췄습니다. 다시 눌러 보시거나 아래 "브라우저에서 열기"를 눌러 주세요.'
+      : '가져오지 못했습니다. 인터넷 연결을 확인하시거나 아래 "브라우저에서 열기"를 눌러 주세요.';
   }
 }
 async function translateText(text,tl){
   const q=text.slice(0,1500);
   try{
-    const r=await fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&dt=t&tl='
-      +encodeURIComponent(tl)+'&q='+encodeURIComponent(q));
+    const r=await fetchT('https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&dt=t&tl='
+      +encodeURIComponent(tl)+'&q='+encodeURIComponent(q),7000);
     if(r.ok){
       const j=await r.json();
       if(Array.isArray(j)&&Array.isArray(j[0])){
@@ -1427,8 +1437,8 @@ async function translateText(text,tl){
     }
   }catch(e){}
   const pair=(hasLatin(q)?'en|':'ko|')+(tl==='ko'?'ko':tl);
-  const r2=await fetch('https://api.mymemory.translated.net/get?langpair='+encodeURIComponent(pair)
-    +'&q='+encodeURIComponent(q.slice(0,480)));
+  const r2=await fetchT('https://api.mymemory.translated.net/get?langpair='+encodeURIComponent(pair)
+    +'&q='+encodeURIComponent(q.slice(0,480)),8000);
   const j2=await r2.json();
   const t2=j2&&j2.responseData&&j2.responseData.translatedText;
   if(t2)return t2;
@@ -1437,7 +1447,7 @@ async function translateText(text,tl){
 async function lookupWord(text){
   const w=text.trim().split(/\s+/)[0].replace(/[^A-Za-z가-힣\-']/g,'');
   if(/^[A-Za-z][A-Za-z\-']*$/.test(w)){
-    const r=await fetch('https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(w));
+    const r=await fetchT('https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(w),7000);
     if(r.ok){
       const j=await r.json();
       let html='';
@@ -1447,8 +1457,11 @@ async function lookupWord(text){
         html+='</ol></div>';
       });
       if(html){
-        try{ html+='<div class="defblk"><div class="pos">한국어 뜻</div><ol><li>'
-          +esc(await translateText(w,'ko'))+'</li></ol></div>'; }catch(e){}
+        try{
+          const ko=await Promise.race([translateText(w,'ko'),
+            new Promise((_,rej)=>setTimeout(()=>rej(new Error('t')),6000))]);
+          html+='<div class="defblk"><div class="pos">한국어 뜻</div><ol><li>'+esc(ko)+'</li></ol></div>';
+        }catch(e){}
         return html;
       }
     }
@@ -2141,18 +2154,67 @@ function renderNoteList(){
     });
   }
 }
-/* 목차 주소는 책마다 형식이 달라 여러 방식으로 풀어 본다 */
+/* 목차 주소는 책마다 형식이 달라 여러 단계로 풀어 본다.
+   목차 파일이 본문과 다른 폴더에 있으면 주소가 어긋나므로,
+   마지막에는 파일 이름만 보고 본문을 찾아 맞춘다. */
+function navDir(){
+  try{
+    const np=(book.packaging&&(book.packaging.navPath||book.packaging.ncxPath))||'';
+    const d=np.split('/').slice(0,-1).join('/');
+    return d;
+  }catch(e){ return ''; }
+}
+function joinPath(dir,href){
+  if(!dir)return href;
+  const parts=(dir+'/'+href).split('/'),out=[];
+  parts.forEach(seg=>{
+    if(seg==='.'||seg==='')return;
+    if(seg==='..')out.pop(); else out.push(seg);
+  });
+  return out.join('/');
+}
+function spineByFile(href){
+  try{
+    const file=decodeURIComponent(href.split('#')[0].split('/').pop()||'');
+    if(!file)return null;
+    return (book.spine.spineItems||[]).find(it=>{
+      const f=decodeURIComponent((it.href||'').split('/').pop()||'');
+      return f===file;
+    })||null;
+  }catch(e){ return null; }
+}
 async function gotoHref(href){
   if(!href||!rendition)return;
-  const tries=[href];
-  try{ if(book.canonical)tries.push(book.canonical(href)); }catch(e){}
+  const frag=(String(href).split('#')[1])||'';
+  const bare=String(href).split('#')[0];
+  const cands=[href];
+  const joined=joinPath(navDir(),href);
+  if(joined&&joined!==href)cands.push(joined);
+  try{ cands.push(decodeURIComponent(href)); }catch(e){}
   try{
-    const sec=book.spine.get(href)||book.spine.get(href.split('#')[0]);
-    if(sec){ tries.push(sec.href); if(sec.index!=null)tries.push(sec.index); }
+    const sec=book.spine.get(href)||book.spine.get(bare);
+    if(sec&&sec.href)cands.push(sec.href+(frag?'#'+frag:''));
   }catch(e){}
-  for(const t of tries){
-    if(t==null||t==='')continue;
+  for(const t of cands){
+    if(!t)continue;
     try{ await rendition.display(t); paintSoon(); return; }catch(e){}
+  }
+  // 마지막 수단: 파일 이름이 같은 본문을 찾아 그 안의 자리로 간다
+  const hit=spineByFile(href);
+  if(hit){
+    try{
+      await rendition.display(hit.index!=null?hit.index:hit.href);
+      if(frag){
+        const cs=rendition.getContents()||[];
+        for(const c of cs){
+          const el=c.document&&(c.document.getElementById(frag)
+                 ||c.document.querySelector('[name="'+CSS.escape(frag)+'"]'));
+          if(el){ try{ await rendition.display(c.cfiFromNode(el)); }catch(e){} break; }
+        }
+      }
+      paintSoon();
+      return;
+    }catch(e){}
   }
   toast('이 항목으로는 이동할 수 없습니다');
 }
