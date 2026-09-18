@@ -106,15 +106,19 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
 .nmark:hover{filter:brightness(1.12)}
 .hlrect{position:absolute;pointer-events:none;border-radius:2px}
 .hlrect.sel2{background:var(--brass);opacity:.34;box-shadow:0 0 0 1px rgba(200,164,92,.55)}
-/* 범위를 끌어 조절하는 손잡이 */
-.grip{position:absolute;width:30px;height:34px;pointer-events:auto;touch-action:none;z-index:9}
-.grip b{
-  position:absolute;bottom:2px;width:15px;height:15px;border-radius:50%;
-  background:var(--brass);box-shadow:0 1px 5px rgba(0,0,0,.55);display:block;
+/* 범위를 끌어 조절하는 손잡이 — 글줄 아래 동그라미 */
+#grips{position:absolute;inset:0;pointer-events:none;z-index:10;display:none}
+#grips.on{display:block}
+#grips .grip{
+  position:absolute;width:46px;height:46px;transform:translateX(-50%);
+  pointer-events:auto;touch-action:none;-webkit-user-select:none;user-select:none;
 }
-.grip i{position:absolute;top:0;width:2px;height:100%;background:var(--brass);opacity:.85;display:block}
-.grip.s b{left:1px} .grip.s i{left:7px}
-.grip.e b{right:1px} .grip.e i{right:7px}
+#grips .grip b{
+  position:absolute;left:50%;top:3px;width:19px;height:19px;margin-left:-9.5px;
+  border-radius:50%;background:var(--brass);box-shadow:0 2px 7px rgba(0,0,0,.55);
+  display:block;
+}
+#grips .grip.drag b{transform:scale(1.18)}
 
 /* 앱 안에서 뜨는 번역·사전 창 */
 #pane{
@@ -281,6 +285,10 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
   <div id="stage">
     <div id="viewer"></div>
     <div id="noteMarks"></div>
+    <div id="grips">
+      <div class="grip" id="gripS"><b></b></div>
+      <div class="grip" id="gripE"><b></b></div>
+    </div>
     <div id="pdfWrap"><div id="pdfDoc"></div></div>
     <div class="loading" id="rload">책을 여는 중…</div>
   </div>
@@ -442,7 +450,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
    EPUB + PDF / 하이라이트·밑줄·메모 / 책갈피 / 분류 관리
    ════════════════════════════════════════════ */
 
-const APP_VERSION='1.7 · 2026-09-17';
+const APP_VERSION='1.8 · 2026-09-18';
 const SCOPES='https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.appdata';
 const STATE_FILE='seojae-state.json';
 const DEFAULT_CID='176016755027-u2v546hup548s1lg6j99023u8n2d6e0i.apps.googleusercontent.com';
@@ -1054,6 +1062,7 @@ function hookEpubContent(){
   });
   rendition.on('relocated',loc=>{
     lastCfi=loc.start.cfi;updateProgress();paintSoon();
+    if(sel2){sel2=null;pending=null;hideSel();hideGrips();}
     const s=bookState(current.id);s.cfi=lastCfi;s.at=Date.now();saveLocal();queueSync();
     updateBmIcon();
   });
@@ -1274,31 +1283,52 @@ function drawSel2(){
     d.style.width=r.width+'px';d.style.height=r.height+'px';
     host.appendChild(d);
   });
-  if(!TOUCH||!shown.length)return;
-  const mk=(side,px,py,ph)=>{
-    const g=document.createElement('div');
-    g.className='grip '+side;
-    g.style.left=(px-stage.left-(side==='s'?22:8))+'px';
-    g.style.top=(py-stage.top)+'px';
-    g.style.height=(ph+14)+'px';
-    g.innerHTML='<i></i><b></b>';
-    g.addEventListener('touchstart',ev=>{ev.preventDefault();gripDrag=side;hideSelKeep();},{passive:false});
-    host.appendChild(g);
-  };
-  const a=shown[0],z=shown[shown.length-1];
-  mk('s',a.x,a.y,a.h);
-  mk('e',z.x+z.w,z.y,z.h);
+  if(TOUCH&&shown.length)placeGrips(shown); else hideGrips();
 }
+
+/* ── 손잡이 ───────────────────────────────────────────────────
+   손잡이는 별도 층에 계속 남겨 두고 자리만 옮긴다.
+   끌 때마다 새로 만들면 손가락이 붙잡은 대상이 사라져 움직이지 않는다. */
 let gripDrag=null;
-function gripMove(e){
+function placeGrips(shown){
+  const stage=$('#stage').getBoundingClientRect();
+  const a=shown[0],z=shown[shown.length-1];
+  const gs=$('#gripS'),ge=$('#gripE');
+  gs.style.left=(a.x-stage.left-9)+'px';
+  gs.style.top=(a.y+a.h-stage.top-3)+'px';
+  ge.style.left=(z.x+z.w-stage.left+9)+'px';
+  ge.style.top=(z.y+z.h-stage.top-3)+'px';
+  $('#grips').classList.add('on');
+}
+function hideGrips(){
+  $('#grips').classList.remove('on');
+  $('#gripS').classList.remove('drag');
+  $('#gripE').classList.remove('drag');
+}
+function gripStart(side,el){
+  gripDrag=side;
+  el.classList.add('drag');
+  hideSelKeep();
+}
+['S','E'].forEach(k=>{
+  const el=$('#grip'+k),side=(k==='S'?'s':'e');
+  el.addEventListener('touchstart',e=>{e.preventDefault();gripStart(side,el);},{passive:false});
+  el.addEventListener('mousedown',e=>{e.preventDefault();gripStart(side,el);});
+});
+function gripPoint(clientX,clientY){
+  // 손잡이는 글줄 아래에 있으므로 글자가 있는 높이로 올려서 찾는다
+  const dx=(gripDrag==='s'?9:-9);
+  return {x:clientX+dx,y:clientY-22};
+}
+function gripMoveAt(clientX,clientY){
   if(!gripDrag||!sel2)return;
-  e.preventDefault();
-  const t=e.touches&&e.touches[0];if(!t)return;
   const doc=sel2.contents.document;
-  const fr=doc.defaultView&&doc.defaultView.frameElement;if(!fr)return;
+  const fr=doc.defaultView&&doc.defaultView.frameElement;
+  if(!fr)return;
   const f=fr.getBoundingClientRect(),b=viewBox(fr);
-  const px=Math.min(Math.max(t.clientX,b.left+4),b.right-4);
-  const py=Math.min(Math.max(t.clientY-16,b.top+4),b.bottom-4);
+  const pt=gripPoint(clientX,clientY);
+  const px=Math.min(Math.max(pt.x,b.left+3),b.right-3);
+  const py=Math.min(Math.max(pt.y,b.top+3),b.bottom-3);
   const r=wordRangeAt(doc,px-f.left,py-f.top);
   if(!r)return;
   const keep=(gripDrag==='s')?sel2.anchor:sel2.end;
@@ -1310,11 +1340,20 @@ function gripMove(e){
 function gripEnd(){
   if(!gripDrag)return;
   gripDrag=null;
+  $('#gripS').classList.remove('drag');
+  $('#gripE').classList.remove('drag');
   if(sel2)syncSel2();
 }
-document.addEventListener('touchmove',gripMove,{passive:false});
+document.addEventListener('touchmove',e=>{
+  if(!gripDrag)return;
+  e.preventDefault();
+  const t=e.touches&&e.touches[0];
+  if(t)gripMoveAt(t.clientX,t.clientY);
+},{passive:false});
+document.addEventListener('mousemove',e=>{ if(gripDrag)gripMoveAt(e.clientX,e.clientY); });
 document.addEventListener('touchend',gripEnd);
 document.addEventListener('touchcancel',gripEnd);
+document.addEventListener('mouseup',gripEnd);
 function startSel2(contents,x,y){
   const r=wordRangeAt(contents.document,x,y);
   if(!r)return;
@@ -1445,7 +1484,7 @@ function syncSel2(){
   }
   drawSel2();showSel(sel2Rect());
 }
-function cancelSel2(){ sel2=null;pending=null;gripDrag=null;hideSel();paintEpubMarks(); }
+function cancelSel2(){ sel2=null;pending=null;gripDrag=null;hideSel();hideGrips();paintEpubMarks(); }
 
 /* ── 하이라이트·밑줄·메모를 직접 그린다 ───────────────────────
    epub.js 가 그려주는 방식은 쪽을 넘기면 좌표가 어긋나서 직접 얹는다. */
@@ -2046,7 +2085,7 @@ function backToShelf(){
   if(pdfDoc){pdfDoc.destroy();pdfDoc=null;}
   $('#pdfDoc').innerHTML='';pdfSizes.clear();
   current=null;kind=null;lastCfi=null;sel2=null;gripDrag=null;
-  $('#pane').classList.remove('on');
+  hideGrips();$('#pane').classList.remove('on');
   show('library');renderShelf();
 }
 $('#btnBack').onclick=backToShelf;
