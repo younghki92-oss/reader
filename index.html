@@ -204,6 +204,14 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
 .tabs button{flex:1;padding:9px;border-radius:9px;border:1px solid var(--line);color:var(--muted);font-size:13.5px}
 .tabs button.sel{background:var(--shelf-hi);color:var(--text);border-color:transparent}
 .listwrap{max-height:56vh;overflow-y:auto;margin:0 -4px}
+.findbar{display:flex;gap:8px;margin-bottom:12px}
+.findbar input{flex:1;padding:10px 12px;border-radius:9px;border:1px solid var(--line);background:#151A20;color:var(--text)}
+.findbar button{padding:10px 14px;border-radius:9px;background:var(--brass);color:#1B2128;font-size:13.5px}
+.findnote{font-size:12.5px;color:var(--muted);margin-bottom:10px}
+.hit{padding:12px 4px;border-bottom:1px solid rgba(255,255,255,.05);width:100%;text-align:left;display:block}
+.hit .ex{font-size:13.5px;line-height:1.55;color:var(--text)}
+.hit .ex mark{background:rgba(200,164,92,.35);color:var(--text);border-radius:2px}
+.hit .wh{font-size:11.5px;color:var(--muted);margin-top:5px}
 .item{display:flex;gap:12px;padding:12px 4px;border-bottom:1px solid rgba(255,255,255,.05);align-items:flex-start;text-align:left;width:100%}
 .item .barc{width:4px;align-self:stretch;border-radius:2px;flex:0 0 auto;min-height:32px}
 .item .body{flex:1;min-width:0}
@@ -356,6 +364,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
     <button data-v="toc" class="sel">목차</button>
     <button data-v="marks">하이라이트</button>
     <button data-v="bm">책갈피</button>
+    <button data-v="find">검색</button>
   </div>
   <div class="listwrap" id="noteList"></div>
   <button class="ghost" id="ntClose" style="width:100%;margin-top:16px">닫기</button>
@@ -450,7 +459,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
    EPUB + PDF / 하이라이트·밑줄·메모 / 책갈피 / 분류 관리
    ════════════════════════════════════════════ */
 
-const APP_VERSION='1.8 · 2026-09-18';
+const APP_VERSION='2.0 · 2026-09-18';
 const SCOPES='https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.appdata';
 const STATE_FILE='seojae-state.json';
 const DEFAULT_CID='176016755027-u2v546hup548s1lg6j99023u8n2d6e0i.apps.googleusercontent.com';
@@ -769,7 +778,7 @@ function renderShelf(){
         <span class="a">${b.kind==='pdf'?'<span class="tag">PDF</span>':''}${esc(sub)}</span>
       </span>
       <span class="pct ${i.pct>=100?'done':''}">${i.pct?i.pct+'%':''}</span>`;
-    row.onclick=()=>{ if(view.fullscreen&&!isFull())goFull(); openBook(b); };
+    row.onclick=()=>{ if(view.fullscreen&&!isFull()&&!TOUCH)goFull(); openBook(b); };
     let press;
     row.addEventListener('touchstart',()=>{press=setTimeout(()=>editBook(b),550);},{passive:true});
     ['touchend','touchmove'].forEach(ev=>row.addEventListener(ev,()=>clearTimeout(press)));
@@ -872,18 +881,19 @@ async function fetchBook(b){
 
 async function openBook(b){
   current=b;kind=b.kind;
+  findQ='';findHits=[];findMsg='';findStop=true;noteTab='toc';
   const i=bookInfo(b);
   $('#rtitle').textContent=i.title;
   $('#rload').style.display='grid';$('#rload').textContent='책을 여는 중…';
   $('#viewer').innerHTML='';$('#noteMarks').innerHTML='';epubHits=[];
   $('#pdfWrap').classList.toggle('on',kind==='pdf');
   $('#epubOnly').hidden=kind==='pdf';$('#pdfOnly').hidden=kind!=='pdf';
-  show('reader');applyTheme();showBars();hideBarsSoon();
+  show('reader');applyTheme();showBars();
   try{
     const buf=await fetchBook(b);
     if(kind==='epub')await openEpub(buf,i); else await openPdf(buf,i);
     $('#rload').style.display='none';
-    updateBmIcon();
+    updateBmIcon();hideBarsSoon(2200);
   }catch(e){
     console.error(e);
     if($('#rload').style.display!=='none')
@@ -1446,7 +1456,7 @@ async function lookupWord(text){
   return '<div class="defblk"><div class="pos">뜻</div><ol><li>'
     +esc(await translateText(text,hasLatin(text)?'ko':'en'))+'</li></ol></div>';
 }
-$('#paneClose').onclick=()=>{$('#pane').classList.remove('on');};
+$('#paneClose').onclick=()=>{$('#pane').classList.remove('on');cancelSel2();};
 $('#paneLang').onchange=()=>runPane();
 $('#paneCopy').onclick=()=>{
   const t=$('#paneOut').innerText;
@@ -1494,6 +1504,7 @@ function paintSoon(){clearTimeout(paintT);paintT=setTimeout(paintEpubMarks,80);}
 function paintEpubMarks(){
   const host=$('#noteMarks');
   if(!host)return;
+  if(!sel2)hideGrips();          // 고른 범위가 없으면 손잡이도 남지 않는다
   host.innerHTML='';epubHits=[];
   if(kind!=='epub'||!rendition||!current)return;
   const stage=$('#stage').getBoundingClientRect();
@@ -1741,7 +1752,8 @@ $('#pdfWrap').addEventListener('scroll',()=>{
   },180);
 },{passive:true});
 $('#pdfWrap').addEventListener('click',e=>{
-  if(String(window.getSelection()).trim())return;
+  const sl=String(window.getSelection()||'').trim();
+  if(sl){ try{window.getSelection().removeAllRanges();}catch(err){} hideSel(); return; }
   hideSel();
   if(view.mode==='scroll')return toggleBars();
   const w=$('#pdfWrap').clientWidth,x=e.clientX;
@@ -1871,10 +1883,13 @@ function showSel(rect){
 function hideSel(){$('#selmenu').classList.remove('on');pending=null;}
 function hideSelKeep(){$('#selmenu').classList.remove('on');}
 function clearSelection(){
-  sel2=null;
+  sel2=null;gripDrag=null;
+  hideGrips();
   try{window.getSelection().removeAllRanges();}catch(e){}
   if(kind==='epub'&&pending&&pending.contents){try{pending.contents.window.getSelection().removeAllRanges();}catch(e){}}
+  if(kind==='epub')paintEpubMarks();
 }
+
 function addMark(style,color,silent){
   if(!pending)return null;
   const s=bookState(current.id);
@@ -1883,7 +1898,7 @@ function addMark(style,color,silent){
   if(kind==='epub'){m.cfi=pending.cfi;m.chapter=currentChapter();}
   else{m.page=pending.page;m.rects=pending.rects;}
   s.marks.push(m);touch(current.id);
-  sel2=null;
+  sel2=null;hideGrips();
   if(kind==='epub')paintEpubMarks();else drawPdfMarks(m.page);
   clearSelection();hideSel();
   if(!silent)toast(style==='underline'?'밑줄을 그었습니다':'하이라이트했습니다');
@@ -1937,8 +1952,8 @@ $('#noteDel').onclick=()=>{
 /* ---------- 책갈피 ---------- */
 function currentBmKey(){return kind==='pdf'?('p'+pdfPage):lastCfi;}
 function findBm(){
-  const s=bookState(current.id);
-  return (s.bmarks||[]).find(b=>b.key===currentBmKey());
+  const s=bookState(current.id),key=currentBmKey();
+  return (s.bmarks||[]).find(b=>b.key===key&&!b.del);
 }
 function updateBmIcon(){
   const on=!!findBm();
@@ -1949,7 +1964,12 @@ $('#btnBm').onclick=()=>{
   const s=bookState(current.id);if(!s.bmarks)s.bmarks=[];
   const key=currentBmKey();if(!key)return;
   const ex=s.bmarks.find(b=>b.key===key);
-  if(ex){ex.del=true;ex.at=Date.now();toast('책갈피를 뺐습니다');}
+  if(ex&&!ex.del){ex.del=true;ex.at=Date.now();toast('책갈피를 뺐습니다');}
+  else if(ex){                                   // 전에 뺀 자리를 다시 꽂는 경우
+    ex.del=false;ex.at=Date.now();
+    ex.label=kind==='pdf'?`${pdfPage}쪽`:(currentChapter()||`${bookState(current.id).pct||0}%`);
+    toast('책갈피를 꽂았습니다');
+  }
   else{
     const label=kind==='pdf'?`${pdfPage}쪽`:(currentChapter()||`${bookState(current.id).pct||0}%`);
     s.bmarks.push({id:uid(),key,label,page:kind==='pdf'?pdfPage:null,cfi:kind==='epub'?lastCfi:null,at:Date.now()});
@@ -1961,11 +1981,107 @@ $('#btnBm').onclick=()=>{
 /* ---------- 목차·하이라이트·책갈피 목록 ---------- */
 let noteTab='toc';
 $$('#noteTabs button').forEach(b=>b.onclick=()=>{noteTab=b.dataset.v;$$('#noteTabs button').forEach(x=>x.classList.toggle('sel',x===b));renderNoteList();});
-$('#btnNotes').onclick=()=>{renderNoteList();openSheet('sheetNotes');};
+$('#btnNotes').onclick=()=>{
+  $$('#noteTabs button').forEach(x=>x.classList.toggle('sel',x.dataset.v===noteTab));
+  renderNoteList();openSheet('sheetNotes');
+};
 $('#ntClose').onclick=()=>closeSheet('sheetNotes');
+let findQ='',findHits=[],findBusy=false,findStop=false,findMsg='';
+function renderFind(el){
+  el.innerHTML='';
+  const bar=document.createElement('div');bar.className='findbar';
+  bar.innerHTML='<input id="findInput" placeholder="책 안에서 찾을 말" autocomplete="off">'
+               +'<button id="findGo">'+(findBusy?'멈춤':'찾기')+'</button>';
+  el.appendChild(bar);
+  const note=document.createElement('div');note.className='findnote';note.textContent=findMsg;
+  el.appendChild(note);
+  const inp=bar.querySelector('#findInput');
+  inp.value=findQ;
+  inp.onkeydown=e=>{ if(e.key==='Enter')startFind(inp.value); };
+  bar.querySelector('#findGo').onclick=()=>{
+    if(findBusy){findStop=true;return;}
+    startFind(inp.value);
+  };
+  findHits.forEach(h=>{
+    const b=document.createElement('button');b.className='hit';
+    b.innerHTML='<span class="ex">'+h.html+'</span><span class="wh">'+esc(h.where||'')+'</span>';
+    b.onclick=()=>{
+      closeSheet('sheetNotes');
+      if(kind==='epub')rendition.display(h.cfi).then(paintSoon);
+      else gotoPdfPage(h.page);
+    };
+    el.appendChild(b);
+  });
+  if(!findHits.length&&!findBusy&&findQ)
+    el.appendChild(Object.assign(document.createElement('div'),
+      {className:'empty',textContent:'찾은 곳이 없습니다.'}));
+}
+function markUp(text,q){
+  const i=text.toLowerCase().indexOf(q.toLowerCase());
+  if(i<0)return esc(text);
+  return esc(text.slice(0,i))+'<mark>'+esc(text.slice(i,i+q.length))+'</mark>'+esc(text.slice(i+q.length));
+}
+async function startFind(q){
+  q=(q||'').trim();
+  if(q.length<2)return toast('두 글자 이상 입력해 주세요');
+  findQ=q;findHits=[];findStop=false;findBusy=true;findMsg='찾는 중…';
+  renderFind($('#noteList'));
+  try{
+    if(kind==='epub')await findInEpub(q); else await findInPdf(q);
+    findMsg=findHits.length?(findHits.length+'곳을 찾았습니다'):'';
+  }catch(e){ console.warn(e); findMsg='찾는 중 문제가 생겼습니다'; }
+  findBusy=false;
+  renderFind($('#noteList'));
+}
+async function findInEpub(q){
+  const items=book.spine.spineItems||[];
+  for(let n=0;n<items.length;n++){
+    if(findStop)break;
+    const it=items[n];
+    try{
+      await it.load(book.load.bind(book));
+      (it.find(q)||[]).forEach(f=>{
+        if(findHits.length<200)
+          findHits.push({cfi:f.cfi,html:markUp(String(f.excerpt||'').trim(),q),where:''});
+      });
+    }catch(e){}
+    try{ it.unload(); }catch(e){}
+    if(n%5===0||findHits.length){
+      findMsg=`${n+1}/${items.length}장 · ${findHits.length}곳`;
+      renderFind($('#noteList'));
+      await new Promise(r=>setTimeout(r,0));
+    }
+    if(findHits.length>=200)break;
+  }
+}
+async function findInPdf(q){
+  const total=pdfDoc.numPages,low=q.toLowerCase();
+  for(let n=1;n<=total;n++){
+    if(findStop)break;
+    try{
+      const page=await pdfDoc.getPage(n);
+      const tc=await page.getTextContent();
+      const text=tc.items.map(x=>x.str).join('');
+      let from=0,idx;
+      while((idx=text.toLowerCase().indexOf(low,from))>=0&&findHits.length<200){
+        const ex=text.slice(Math.max(0,idx-45),idx+q.length+45);
+        findHits.push({page:n,html:markUp(ex,q),where:n+'쪽'});
+        from=idx+q.length;
+      }
+    }catch(e){}
+    if(n%10===0){
+      findMsg=`${n}/${total}쪽 · ${findHits.length}곳`;
+      renderFind($('#noteList'));
+      await new Promise(r=>setTimeout(r,0));
+    }
+    if(findHits.length>=200)break;
+  }
+}
+
 function renderNoteList(){
   const el=$('#noteList');el.innerHTML='';
   const i=bookInfo(current);
+  if(noteTab==='find'){ renderFind(el); return; }
   if(noteTab==='toc'){
     if(!tocItems.length){el.innerHTML='<div class="empty">이 책에는 목차 정보가 없습니다.</div>';return;}
     tocItems.forEach(it=>{
@@ -1974,7 +2090,7 @@ function renderNoteList(){
       b.textContent=it.label;
       b.onclick=async()=>{
         closeSheet('sheetNotes');
-        if(kind==='epub')rendition.display(it.href);
+        if(kind==='epub')await gotoHref(it.href);
         else{
           try{
             const dest=typeof it.href==='string'?await pdfDoc.getDestination(it.href):it.href;
@@ -2025,6 +2141,21 @@ function renderNoteList(){
     });
   }
 }
+/* 목차 주소는 책마다 형식이 달라 여러 방식으로 풀어 본다 */
+async function gotoHref(href){
+  if(!href||!rendition)return;
+  const tries=[href];
+  try{ if(book.canonical)tries.push(book.canonical(href)); }catch(e){}
+  try{
+    const sec=book.spine.get(href)||book.spine.get(href.split('#')[0]);
+    if(sec){ tries.push(sec.href); if(sec.index!=null)tries.push(sec.index); }
+  }catch(e){}
+  for(const t of tries){
+    if(t==null||t==='')continue;
+    try{ await rendition.display(t); paintSoon(); return; }catch(e){}
+  }
+  toast('이 항목으로는 이동할 수 없습니다');
+}
 function jumpTo(m){
   if(kind==='epub'&&(m.cfi))rendition.display(m.cfi);
   else if(kind==='pdf'&&m.page)gotoPdfPage(m.page);
@@ -2051,7 +2182,14 @@ function updateFullIcon(){ $('#btnFull').classList.toggle('act',isFull()); }
 document.addEventListener('fullscreenchange',()=>{
   view.fullscreen=isFull();cfg.view=view;updateFullIcon();syncViewUI();
 });
-$('#btnFull').onclick=()=>{ isFull()?exitFull():goFull(); };
+$('#btnFull').onclick=()=>{
+  if(isFull()){exitFull();return;}
+  goFull();
+  if(TOUCH&&!localStorage.getItem('fsHelp')){
+    localStorage.setItem('fsHelp','1');
+    toast('안내 문구는 안드로이드가 띄우는 것입니다. 홈 화면에 앱을 설치하면 전체 화면 없이도 주소창이 사라집니다');
+  }
+};
 $$('#segFull button').forEach(b=>b.onclick=()=>{
   const on=b.dataset.v==='on';
   view.fullscreen=on;cfg.view=view;syncViewUI();
