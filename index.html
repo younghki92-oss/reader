@@ -442,7 +442,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
    EPUB + PDF / 하이라이트·밑줄·메모 / 책갈피 / 분류 관리
    ════════════════════════════════════════════ */
 
-const APP_VERSION='1.6 · 2026-09-17';
+const APP_VERSION='1.7 · 2026-09-17';
 const SCOPES='https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.appdata';
 const STATE_FILE='seojae-state.json';
 const DEFAULT_CID='176016755027-u2v546hup548s1lg6j99023u8n2d6e0i.apps.googleusercontent.com';
@@ -919,6 +919,31 @@ function applyTypography(){
   rendition.themes.font(view.font==='serif'?'"Noto Serif KR", Georgia, serif':'"Noto Sans KR", sans-serif');
   rendition.themes.override('line-height',view.font==='serif'?'1.78':'1.7',true);
 }
+let dragLock=null;
+function scrollBoxOf(fr){
+  let el=fr&&fr.parentElement;
+  while(el&&el!==document.body){
+    const st=getComputedStyle(el);
+    if(st.overflow!=='visible'||st.overflowX!=='visible')return el;
+    el=el.parentElement;
+  }
+  return null;
+}
+function holdScroll(){
+  if(!dragLock)return;
+  const {el,left,win,winX}=dragLock;
+  if(el&&el.scrollLeft!==left)el.scrollLeft=left;
+  if(win&&win.scrollX!==winX)try{win.scrollTo(winX,win.scrollY);}catch(e){}
+}
+function releaseDrag(){
+  if(!dragLock)return;
+  const {el,win}=dragLock;
+  if(el)el.removeEventListener('scroll',holdScroll);
+  if(win)win.removeEventListener('scroll',holdScroll);
+  dragLock=null;
+}
+window.addEventListener('mouseup',releaseDrag);
+
 function hookEpubContent(){
   rendition.hooks.content.register(contents=>{
     const doc=contents.document;
@@ -934,13 +959,14 @@ function hookEpubContent(){
     doc.addEventListener('click',e=>{
       if(sel2){
         if(Date.now()-sel2.t<320)return;        // 길게 누른 직후의 클릭은 무시
-        setSel2End(contents,e.clientX,e.clientY);
+        cancelSel2();                            // 범위 조절은 손잡이로만 한다
         return;
       }
       const bd=localBand(contents);
       const x=e.clientX, px=x+bd.f.left, py=e.clientY+bd.f.top;
+      // 마우스를 놓는 순간에도 클릭이 한 번 들어온다. 이때 메뉴를 닫으면 안 된다.
       const has=doc.getSelection&&String(doc.getSelection()).trim();
-      if(has){ hideSel(); return; }   // 고른 글이 있으면 쪽을 넘기지 않는다
+      if(has)return;
       hideSel();
       const hitId=markAt(px,py);
       if(hitId){ openNote(hitId); return; }          // 표시를 누르면 메모가 열린다
@@ -970,6 +996,21 @@ function hookEpubContent(){
       const t=e.changedTouches[0],dx=t.clientX-sx,dy=t.clientY-sy;
       if(Date.now()-st<340&&Math.abs(dx)>55&&Math.abs(dx)>Math.abs(dy)*1.6)turn(dx<0?'next':'prev');
     },{passive:true});
+    doc.addEventListener('keydown',onKey);
+
+    /* 마우스로 끌어 고르는 동안 브라우저가 본문을 옆으로 미는 것을 막는다.
+       감시자는 바깥에 하나만 두어 쪽을 넘길 때마다 쌓이지 않게 한다. */
+    doc.addEventListener('mousedown',()=>{
+      releaseDrag();
+      const fr=doc.defaultView.frameElement,el=scrollBoxOf(fr),win=doc.defaultView;
+      dragLock={el,left:el?el.scrollLeft:0,win,winX:win.scrollX||0};
+      if(el)el.addEventListener('scroll',holdScroll);
+      win.addEventListener('scroll',holdScroll);
+    });
+    doc.addEventListener('mousemove',holdScroll);
+    doc.addEventListener('mouseup',releaseDrag);
+    doc.addEventListener('mouseleave',releaseDrag);
+
     doc.addEventListener('keydown',onKey);
 
     /* 마우스로 끌어 고르는 동안, 브라우저가 본문을 옆으로 밀어
@@ -1008,6 +1049,8 @@ function hookEpubContent(){
     };
     doc.addEventListener('mouseup',endDrag);
     doc.addEventListener('mouseleave',endDrag);
+    window.addEventListener('mouseup',endDrag);      // 창 밖에서 놓았을 때
+    rendition.on('relocated',endDrag);
   });
   rendition.on('relocated',loc=>{
     lastCfi=loc.start.cfi;updateProgress();paintSoon();
@@ -1273,21 +1316,14 @@ document.addEventListener('touchmove',gripMove,{passive:false});
 document.addEventListener('touchend',gripEnd);
 document.addEventListener('touchcancel',gripEnd);
 function startSel2(contents,x,y){
-  const r=sentenceRangeAt(contents.document,x,y);
+  const r=wordRangeAt(contents.document,x,y);
   if(!r)return;
   sel2={contents,anchor:r,end:null,t:Date.now()};
   syncSel2();
   if(!localStorage.getItem('tapHelp')){
     localStorage.setItem('tapHelp','1');
-    toast('문장이 잡혔습니다. 양 끝 손잡이를 끌어 조절하세요');
+    toast('양 끝 손잡이를 끌어 범위를 정하세요');
   }
-}
-function setSel2End(contents,x,y){
-  if(!sel2)return;
-  const r=sentenceRangeAt(contents.document,x,y);
-  if(!r)return;
-  sel2.end=r;
-  syncSel2();
 }
 /* ── 앱 안에서 번역·사전 보기 ───────────────────────────────── */
 let paneMode='tr',paneText='';
@@ -1304,7 +1340,7 @@ function openPane(mode,text){
 }
 function placePane(){
   const el=$('#pane');
-  const r=sel2Rect()||(pending&&pending.rect);
+  const r=sel2Rect()||lastSelRect;
   const h=el.offsetHeight||260,w=el.offsetWidth||360,pad=10;
   let top,left;
   if(r){
@@ -1320,8 +1356,7 @@ async function runPane(){
   const out=$('#paneOut');
   try{
     if(paneMode==='tr'){
-      const tl=$('#paneLang').value;
-      out.textContent=await translateText(paneText,tl);
+      out.textContent=await translateText(paneText,$('#paneLang').value);
     }else{
       out.innerHTML=await lookupWord(paneText);
     }
@@ -1369,7 +1404,6 @@ async function lookupWord(text){
       }
     }
   }
-  // 한국어 낱말 등은 뜻풀이 대신 번역으로 보여 준다
   return '<div class="defblk"><div class="pos">뜻</div><ol><li>'
     +esc(await translateText(text,hasLatin(text)?'ko':'en'))+'</li></ol></div>';
 }
@@ -1385,8 +1419,8 @@ $('#paneOpen').onclick=()=>{
     : 'https://ko.dict.naver.com/#/search?query='+encodeURIComponent(paneText.slice(0,30));
   window.open(url,'_blank');
 };
-$('#pane').addEventListener('click',e=>e.stopPropagation());
 
+/* 고른 범위가 화면에서 차지하는 자리 — 메뉴와 창을 붙이는 데 쓴다 */
 function sel2Rect(){
   const rng=sel2Range();if(!rng)return null;
   const doc=rng.startContainer.ownerDocument;
@@ -1401,6 +1435,7 @@ function sel2Rect(){
   return {top:first.top+f.top,bottom:last.bottom+f.top,
           left:first.left+f.left,width:first.width};
 }
+/* 고른 범위가 바뀔 때마다 한 번에 갱신 */
 function syncSel2(){
   const rng=sel2Range();
   if(!rng||!String(rng).trim()){pending=null;}
@@ -1774,7 +1809,9 @@ function buildSelMenu(){
     '<path d="M18 6L6 18M6 6l12 12"/>',
     ()=>cancelSel2(),'quit'));
 }
+let lastSelRect=null;
 function showSel(rect){
+  if(rect)lastSelRect=rect;
   const m=$('#selmenu');
   m.classList.add('on');
   m.classList.toggle('off',!pending);
