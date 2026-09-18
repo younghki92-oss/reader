@@ -459,7 +459,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
    EPUB + PDF / 하이라이트·밑줄·메모 / 책갈피 / 분류 관리
    ════════════════════════════════════════════ */
 
-const APP_VERSION='2.2 · 2026-09-18';
+const APP_VERSION='2.3 · 2026-09-18';
 const SCOPES='https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.appdata';
 const STATE_FILE='seojae-state.json';
 const DEFAULT_CID='176016755027-u2v546hup548s1lg6j99023u8n2d6e0i.apps.googleusercontent.com';
@@ -1404,18 +1404,15 @@ const hasLatin=t=>/[A-Za-z]/.test(t);
 /* 응답이 없으면 정해진 시간에 끊는다 — 없으면 "찾는 중"에서 멈춘다 */
 function fetchT(url,ms){
   const c=new AbortController();
-  const timer=setTimeout(()=>c.abort(),ms||7000);
+  const timer=setTimeout(()=>c.abort(),ms||6000);
   return fetch(url,{signal:c.signal}).finally(()=>clearTimeout(timer));
 }
 async function runPane(){
   const out=$('#paneOut');
-  const guard=new Promise((_,rej)=>setTimeout(()=>rej(new Error('시간 초과')),16000));
+  if(paneMode==='dc'){ startLookup(paneText); return; }
+  const guard=new Promise((_,rej)=>setTimeout(()=>rej(new Error('시간 초과')),14000));
   try{
-    if(paneMode==='tr'){
-      out.textContent=await Promise.race([translateText(paneText,$('#paneLang').value),guard]);
-    }else{
-      out.innerHTML=await Promise.race([lookupWord(paneText),guard]);
-    }
+    out.textContent=await Promise.race([translateText(paneText,$('#paneLang').value),guard]);
   }catch(e){
     console.warn('번역/사전 실패',e);
     out.textContent=(e&&e.message==='시간 초과')
@@ -1427,7 +1424,7 @@ async function translateText(text,tl){
   const q=text.slice(0,1500);
   try{
     const r=await fetchT('https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&dt=t&tl='
-      +encodeURIComponent(tl)+'&q='+encodeURIComponent(q),7000);
+      +encodeURIComponent(tl)+'&q='+encodeURIComponent(q),5000);
     if(r.ok){
       const j=await r.json();
       if(Array.isArray(j)&&Array.isArray(j[0])){
@@ -1438,7 +1435,7 @@ async function translateText(text,tl){
   }catch(e){}
   const pair=(hasLatin(q)?'en|':'ko|')+(tl==='ko'?'ko':tl);
   const r2=await fetchT('https://api.mymemory.translated.net/get?langpair='+encodeURIComponent(pair)
-    +'&q='+encodeURIComponent(q.slice(0,480)),8000);
+    +'&q='+encodeURIComponent(q.slice(0,480)),6000);
   const j2=await r2.json();
   const t2=j2&&j2.responseData&&j2.responseData.translatedText;
   if(t2)return t2;
@@ -1494,7 +1491,7 @@ function fmtDict(j,w){
 async function wiktionary(lang,word){
   const url='https://'+lang+'.wiktionary.org/w/api.php?action=query&format=json&origin=*'
     +'&prop=extracts&explaintext=1&redirects=1&titles='+encodeURIComponent(word);
-  const r=await fetchT(url,7000);
+  const r=await fetchT(url,5000);
   if(!r.ok)return null;
   const j=await r.json();
   const pages=j&&j.query&&j.query.pages;
@@ -1521,52 +1518,72 @@ function fmtWik(ex,w){
   if(open)html+='</ol></div>';
   return html||null;
 }
-async function koGloss(w){
-  try{
-    const ko=await Promise.race([translateText(w,'ko'),
-      new Promise((_,rej)=>setTimeout(()=>rej(new Error('t')),6000))]);
-    return '<div class="defblk"><div class="pos">한국어 뜻</div><ol><li>'+esc(ko)+'</li></ol></div>';
-  }catch(e){ return ''; }
+/* 사전은 모두 동시에 두드리고, 먼저 온 것부터 보여 준다.
+   차례로 기다리면 최악의 경우 1분이 걸린다. */
+let lookToken=0;
+const LK={note:'',main:'',ko:'',prio:99,done:0,total:0};
+function paintLookup(){
+  const out=$('#paneOut');
+  if(!out)return;
+  let html=LK.note+LK.main+LK.ko;
+  if(!html)html='<div class="findnote">찾는 중…</div>';
+  out.innerHTML=html;
 }
-async function lookupWord(text){
+function transBlock(t,label){
+  return '<div class="defblk"><div class="pos">'+esc(label)+'</div><ol><li>'+esc(t)+'</li></ol></div>';
+}
+async function startLookup(text){
+  const my=++lookToken;
+  LK.note='';LK.main='';LK.ko='';LK.prio=99;
+  paintLookup();
+
   const raw=(text||'').trim().split(/\s+/)[0]
     .replace(/[^A-Za-z가-힣\u3131-\u318E\-']/g,'');
-  if(!raw)return '<div class="defblk"><ol><li>낱말을 알아보지 못했습니다.</li></ol></div>';
+  if(!raw){ LK.main='<div class="defblk"><ol><li>낱말을 알아보지 못했습니다.</li></ol></div>'; paintLookup(); return; }
   const isEn=/^[A-Za-z][A-Za-z\-']*$/.test(raw);
-  const forms=isEn?enForms(raw):koForms(raw);
-
-  if(isEn){
-    for(const w of forms){
-      try{
-        const r=await fetchT('https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(w),6000);
-        if(r.ok){
-          const html=fmtDict(await r.json(),w);
-          if(html)return (w!==raw?'<div class="findnote">'+esc(raw)+' → '+esc(w)+'</div>':'')
-                        +html+await koGloss(w);
-        }
-      }catch(e){}
-    }
-  }
+  const forms=(isEn?enForms(raw):koForms(raw)).slice(0,4);
   const lang=isEn?'en':'ko';
-  for(const w of forms){
-    try{
-      const ex=await wiktionary(lang,w);
-      if(ex){
-        const html=fmtWik(ex,w);
-        if(html)return (w!==raw?'<div class="findnote">'+esc(raw)+' → '+esc(w)+'</div>':'')
-                      +html+(isEn?await koGloss(w):'');
-      }
-    }catch(e){}
+
+  const put=(prio,html,form)=>{
+    if(my!==lookToken||!html||prio>=LK.prio)return;
+    LK.prio=prio;LK.main=html;
+    LK.note=(form&&form!==raw)?'<div class="findnote">'+esc(raw)+' → '+esc(form)+'</div>':'';
+    paintLookup();
+  };
+
+  const jobs=[];
+  if(isEn){
+    forms.forEach((w,i)=>jobs.push(
+      fetchT('https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(w),6000)
+        .then(r=>r.ok?r.json():null)
+        .then(j=>{ if(j)put(10+i,fmtDict(j,w),w); })
+        .catch(()=>{})
+    ));
   }
-  try{
-    const t=await Promise.race([translateText(raw,isEn?'ko':'en'),
-      new Promise((_,rej)=>setTimeout(()=>rej(new Error('t')),8000))]);
-    return '<div class="findnote">사전에 없어 번역으로 보여 드립니다</div>'
-      +'<div class="defblk"><ol><li>'+esc(t)+'</li></ol></div>';
-  }catch(e){}
-  return '<div class="defblk"><ol><li>뜻을 찾지 못했습니다. 아래 "브라우저에서 열기"로 확인해 보세요.</li></ol></div>';
+  forms.forEach((w,i)=>jobs.push(
+    wiktionary(lang,w).then(ex=>{ if(ex)put(30+i,fmtWik(ex,w),w); }).catch(()=>{})
+  ));
+  // 번역은 처음부터 함께 보낸다 — 사전이 늦거나 없을 때 바로 쓸 수 있게
+  jobs.push(
+    translateText(raw,isEn?'ko':'en')
+      .then(t=>{
+        if(my!==lookToken||!t)return;
+        LK.ko=transBlock(t,isEn?'한국어 뜻':'영어 뜻');
+        paintLookup();
+      })
+      .catch(()=>{})
+  );
+
+  await Promise.allSettled(jobs);
+  if(my!==lookToken)return;
+  if(!LK.main&&!LK.ko){
+    LK.main='<div class="defblk"><ol><li>뜻을 찾지 못했습니다. 아래 "브라우저에서 열기"로 확인해 보세요.</li></ol></div>';
+  }else if(!LK.main&&LK.ko){
+    LK.note='<div class="findnote">사전에 없어 번역으로 보여 드립니다</div>';
+  }
+  paintLookup();
 }
-$('#paneClose').onclick=()=>{$('#pane').classList.remove('on');cancelSel2();};
+$('#paneClose').onclick=()=>{lookToken++;$('#pane').classList.remove('on');cancelSel2();};
 $('#paneLang').onchange=()=>runPane();
 $('#paneCopy').onclick=()=>{
   const t=$('#paneOut').innerText;
