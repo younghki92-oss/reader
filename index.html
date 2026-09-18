@@ -413,6 +413,9 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
     <button data-v="page">쪽 넘기기</button><button data-v="scroll">계속 스크롤</button></div>
     <div class="hint">PDF 화면 돌리기는 책마다 다르게 두려고 책을 연 뒤 오른쪽 위 <b>Aa</b> 에 있습니다.</div></div>
   <button class="ghost" id="setCats" style="width:100%;margin-bottom:18px">분류 관리</button>
+  <div class="field"><label>사전 중계 주소</label>
+    <input id="setDict" placeholder="https://script.google.com/macros/s/.../exec">
+    <div class="hint">표준국어대사전과 Merriam-Webster를 쓰려면 필요합니다. 앱스 스크립트 배포 주소를 넣으세요.</div></div>
   <div class="field"><label>책 폴더 ID</label><input id="setFid"></div>
   <div class="field"><label>클라이언트 ID</label><input id="setCid"></div>
   <button class="primary" id="setSave" style="width:100%">저장하고 다시 읽기</button>
@@ -459,7 +462,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
    EPUB + PDF / 하이라이트·밑줄·메모 / 책갈피 / 분류 관리
    ════════════════════════════════════════════ */
 
-const APP_VERSION='2.3 · 2026-09-18';
+const APP_VERSION='2.4 · 2026-09-18';
 const SCOPES='https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.appdata';
 const STATE_FILE='seojae-state.json';
 const DEFAULT_CID='176016755027-u2v546hup548s1lg6j99023u8n2d6e0i.apps.googleusercontent.com';
@@ -497,6 +500,7 @@ const uid=()=>Math.random().toString(36).slice(2,10);
 const cfg={
   get cid(){return localStorage.getItem('cid')||DEFAULT_CID;}, set cid(v){localStorage.setItem('cid',v);},
   get fid(){return localStorage.getItem('fid')||DEFAULT_FID;}, set fid(v){localStorage.setItem('fid',v);},
+  get dict(){return localStorage.getItem('dict')||'';}, set dict(v){localStorage.setItem('dict',v);},
   get view(){try{return JSON.parse(localStorage.getItem('view'))||{};}catch(e){return{};}},
   set view(v){localStorage.setItem('view',JSON.stringify(v));}
 };
@@ -1488,6 +1492,66 @@ function fmtDict(j,w){
   }catch(e){}
   return html;
 }
+/* 중계기를 거쳐 정식 사전에 묻는다 */
+function relay(src,q){
+  if(!cfg.dict)return Promise.reject(new Error('중계 주소 없음'));
+  return fetchT(cfg.dict+'?src='+src+'&q='+encodeURIComponent(q),6000)
+    .then(r=>r.ok?r.json():null);
+}
+/* 표준국어대사전 */
+function fmtStdict(j,w){
+  try{
+    const items=(j&&j.channel&&j.channel.item)||[];
+    if(!items.length)return null;
+    let html='';
+    items.slice(0,6).forEach(it=>{
+      const senses=Array.isArray(it.sense)?it.sense:[it.sense];
+      html+='<div class="defblk"><div class="pos">'+esc(it.word||w)
+          +(it.pos?' · '+esc(it.pos):'')+'</div><ol>';
+      senses.slice(0,4).forEach(sn=>{
+        if(sn&&sn.definition)html+='<li>'+esc(sn.definition)+'</li>';
+      });
+      html+='</ol></div>';
+    });
+    return html.includes('<li>')?html:null;
+  }catch(e){ return null; }
+}
+/* Merriam-Webster 사전 */
+function fmtMW(j){
+  try{
+    if(!Array.isArray(j)||!j.length)return null;
+    if(typeof j[0]==='string')return null;          // 비슷한 낱말 제안만 온 경우
+    let html='';
+    j.slice(0,3).forEach(en=>{
+      const defs=en.shortdef||[];
+      if(!defs.length)return;
+      const pr=(en.hwi&&en.hwi.prs&&en.hwi.prs[0]&&en.hwi.prs[0].mw)?' · /'+en.hwi.prs[0].mw+'/':'';
+      html+='<div class="defblk"><div class="pos">'+esc(en.fl||'')+esc(pr)+'</div><ol>';
+      defs.slice(0,4).forEach(d=>{html+='<li>'+esc(d)+'</li>';});
+      html+='</ol></div>';
+    });
+    return html||null;
+  }catch(e){ return null; }
+}
+/* Merriam-Webster 시소러스 — 비슷한 말 */
+function fmtMWTh(j){
+  try{
+    if(!Array.isArray(j)||!j.length||typeof j[0]==='string')return '';
+    const syn=[],ant=[];
+    j.slice(0,2).forEach(en=>{
+      const m=en.meta||{};
+      (m.syns||[]).forEach(g=>g.slice(0,8).forEach(x=>{if(!syn.includes(x))syn.push(x);}));
+      (m.ants||[]).forEach(g=>g.slice(0,6).forEach(x=>{if(!ant.includes(x))ant.push(x);}));
+    });
+    let html='';
+    if(syn.length)html+='<div class="defblk"><div class="pos">비슷한 말</div><ol><li>'
+      +esc(syn.slice(0,12).join(', '))+'</li></ol></div>';
+    if(ant.length)html+='<div class="defblk"><div class="pos">반대말</div><ol><li>'
+      +esc(ant.slice(0,8).join(', '))+'</li></ol></div>';
+    return html;
+  }catch(e){ return ''; }
+}
+
 async function wiktionary(lang,word){
   const url='https://'+lang+'.wiktionary.org/w/api.php?action=query&format=json&origin=*'
     +'&prop=extracts&explaintext=1&redirects=1&titles='+encodeURIComponent(word);
@@ -1521,11 +1585,11 @@ function fmtWik(ex,w){
 /* 사전은 모두 동시에 두드리고, 먼저 온 것부터 보여 준다.
    차례로 기다리면 최악의 경우 1분이 걸린다. */
 let lookToken=0;
-const LK={note:'',main:'',ko:'',prio:99,done:0,total:0};
+const LK={note:'',main:'',ko:'',syn:'',prio:99};
 function paintLookup(){
   const out=$('#paneOut');
   if(!out)return;
-  let html=LK.note+LK.main+LK.ko;
+  let html=LK.note+LK.main+LK.syn+LK.ko;
   if(!html)html='<div class="findnote">찾는 중…</div>';
   out.innerHTML=html;
 }
@@ -1534,7 +1598,7 @@ function transBlock(t,label){
 }
 async function startLookup(text){
   const my=++lookToken;
-  LK.note='';LK.main='';LK.ko='';LK.prio=99;
+  LK.note='';LK.main='';LK.ko='';LK.syn='';LK.prio=99;
   paintLookup();
 
   const raw=(text||'').trim().split(/\s+/)[0]
@@ -1552,6 +1616,23 @@ async function startLookup(text){
   };
 
   const jobs=[];
+  // 정식 사전(중계기)이 있으면 가장 먼저 쓴다
+  if(cfg.dict){
+    forms.forEach((w,i)=>{
+      if(isEn){
+        jobs.push(relay('mw',w).then(j=>{ if(j)put(1+i,fmtMW(j),w); }).catch(()=>{}));
+      }else{
+        jobs.push(relay('stdict',w).then(j=>{ if(j)put(1+i,fmtStdict(j,w),w); }).catch(()=>{}));
+      }
+    });
+    if(isEn){
+      jobs.push(relay('mwth',forms[0]).then(j=>{
+        if(my!==lookToken)return;
+        const h=fmtMWTh(j);
+        if(h){LK.syn=h;paintLookup();}
+      }).catch(()=>{}));
+    }
+  }
   if(isEn){
     forms.forEach((w,i)=>jobs.push(
       fetchT('https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(w),6000)
@@ -1576,7 +1657,7 @@ async function startLookup(text){
 
   await Promise.allSettled(jobs);
   if(my!==lookToken)return;
-  if(!LK.main&&!LK.ko){
+  if(!LK.main&&!LK.ko&&!LK.syn){
     LK.main='<div class="defblk"><ol><li>뜻을 찾지 못했습니다. 아래 "브라우저에서 열기"로 확인해 보세요.</li></ol></div>';
   }else if(!LK.main&&LK.ko){
     LK.note='<div class="findnote">사전에 없어 번역으로 보여 드립니다</div>';
@@ -2477,7 +2558,7 @@ $('#pgGo').onclick=()=>{
 
 /* ---------- 설정 시트 ---------- */
 $('#btnSettings').onclick=()=>{
-  $('#setFid').value=cfg.fid;$('#setCid').value=cfg.cid;
+  $('#setFid').value=cfg.fid;$('#setCid').value=cfg.cid;$('#setDict').value=cfg.dict;
   $('#setVer').textContent=APP_VERSION;
   $('#setSync').textContent=state.lastSync?('마지막 동기화 '+new Date(state.lastSync).toLocaleString('ko-KR')):'아직 동기화한 적 없음';
   syncViewUI();openSheet('sheetSet');
@@ -2495,7 +2576,11 @@ $('#setUpdate').onclick=async()=>{
 };
 $('#setClose').onclick=()=>closeSheet('sheetSet');
 $('#setCats').onclick=()=>{closeSheet('sheetSet');openCats();};
-$('#setSave').onclick=()=>{cfg.fid=$('#setFid').value.trim();cfg.cid=$('#setCid').value.trim();closeSheet('sheetSet');scanDrive();};
+$('#setSave').onclick=()=>{
+  cfg.fid=$('#setFid').value.trim();cfg.cid=$('#setCid').value.trim();
+  cfg.dict=$('#setDict').value.trim().replace(/\?.*$/,'');
+  closeSheet('sheetSet');scanDrive();
+};
 $('#setSync2').onclick=async()=>{
   toast('맞추는 중…');
   try{
