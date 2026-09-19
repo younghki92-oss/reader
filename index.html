@@ -462,7 +462,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
    EPUB + PDF / 하이라이트·밑줄·메모 / 책갈피 / 분류 관리
    ════════════════════════════════════════════ */
 
-const APP_VERSION='2.4 · 2026-09-18';
+const APP_VERSION='2.5 · 2026-09-18';
 const SCOPES='https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.appdata';
 const STATE_FILE='seojae-state.json';
 const DEFAULT_CID='176016755027-u2v546hup548s1lg6j99023u8n2d6e0i.apps.googleusercontent.com';
@@ -1481,17 +1481,6 @@ function enForms(w){
   if(l.endsWith('ly'))add(l.slice(0,-2));
   return out.slice(0,7);
 }
-function fmtDict(j,w){
-  let html='';
-  try{
-    (j[0].meanings||[]).slice(0,4).forEach(mn=>{
-      html+='<div class="defblk"><div class="pos">'+esc(mn.partOfSpeech||'')+'</div><ol>';
-      (mn.definitions||[]).slice(0,3).forEach(d=>{html+='<li>'+esc(d.definition||'')+'</li>';});
-      html+='</ol></div>';
-    });
-  }catch(e){}
-  return html;
-}
 /* 중계기를 거쳐 정식 사전에 묻는다 */
 function relay(src,q){
   if(!cfg.dict)return Promise.reject(new Error('중계 주소 없음'));
@@ -1552,38 +1541,6 @@ function fmtMWTh(j){
   }catch(e){ return ''; }
 }
 
-async function wiktionary(lang,word){
-  const url='https://'+lang+'.wiktionary.org/w/api.php?action=query&format=json&origin=*'
-    +'&prop=extracts&explaintext=1&redirects=1&titles='+encodeURIComponent(word);
-  const r=await fetchT(url,5000);
-  if(!r.ok)return null;
-  const j=await r.json();
-  const pages=j&&j.query&&j.query.pages;
-  if(!pages)return null;
-  const k=Object.keys(pages)[0];
-  if(k==='-1')return null;
-  const ex=pages[k].extract;
-  return (ex&&ex.trim())?ex:null;
-}
-function fmtWik(ex,w){
-  const lines=ex.split('\n').map(x=>x.trim()).filter(Boolean).slice(0,40);
-  let html='',open=false,n=0;
-  lines.forEach(line=>{
-    const h=line.match(/^=+\s*(.+?)\s*=+$/);
-    if(h){
-      if(open){html+='</ol></div>';open=false;}
-      html+='<div class="defblk"><div class="pos">'+esc(h[1])+'</div><ol>';open=true;
-      return;
-    }
-    if(n>=12)return;
-    if(!open){html+='<div class="defblk"><ol>';open=true;}
-    html+='<li>'+esc(line.replace(/^[\*\#\s]+/,''))+'</li>';n++;
-  });
-  if(open)html+='</ol></div>';
-  return html||null;
-}
-/* 사전은 모두 동시에 두드리고, 먼저 온 것부터 보여 준다.
-   차례로 기다리면 최악의 경우 1분이 걸린다. */
 let lookToken=0;
 const LK={note:'',main:'',ko:'',syn:'',prio:99};
 function paintLookup(){
@@ -1603,64 +1560,49 @@ async function startLookup(text){
 
   const raw=(text||'').trim().split(/\s+/)[0]
     .replace(/[^A-Za-z가-힣\u3131-\u318E\-']/g,'');
-  if(!raw){ LK.main='<div class="defblk"><ol><li>낱말을 알아보지 못했습니다.</li></ol></div>'; paintLookup(); return; }
-  const isEn=/^[A-Za-z][A-Za-z\-']*$/.test(raw);
-  const forms=(isEn?enForms(raw):koForms(raw)).slice(0,4);
-  const lang=isEn?'en':'ko';
-
-  const put=(prio,html,form)=>{
-    if(my!==lookToken||!html||prio>=LK.prio)return;
-    LK.prio=prio;LK.main=html;
-    LK.note=(form&&form!==raw)?'<div class="findnote">'+esc(raw)+' → '+esc(form)+'</div>':'';
-    paintLookup();
-  };
-
-  const jobs=[];
-  // 정식 사전(중계기)이 있으면 가장 먼저 쓴다
-  if(cfg.dict){
-    forms.forEach((w,i)=>{
-      if(isEn){
-        jobs.push(relay('mw',w).then(j=>{ if(j)put(1+i,fmtMW(j),w); }).catch(()=>{}));
-      }else{
-        jobs.push(relay('stdict',w).then(j=>{ if(j)put(1+i,fmtStdict(j,w),w); }).catch(()=>{}));
-      }
-    });
-    if(isEn){
-      jobs.push(relay('mwth',forms[0]).then(j=>{
-        if(my!==lookToken)return;
-        const h=fmtMWTh(j);
-        if(h){LK.syn=h;paintLookup();}
-      }).catch(()=>{}));
-    }
+  if(!raw){
+    LK.main='<div class="defblk"><ol><li>낱말을 알아보지 못했습니다.</li></ol></div>';
+    paintLookup();return;
   }
+  const isEn=/^[A-Za-z][A-Za-z\-']*$/.test(raw);
+
+  if(!cfg.dict){
+    LK.main='<div class="defblk"><ol><li>사전 중계 주소가 아직 설정되지 않았습니다.'
+      +' 설정에서 주소를 넣어 주세요.</li></ol></div>';
+    paintLookup();return;
+  }
+
+  const forms=(isEn?enForms(raw):koForms(raw)).slice(0,4);
+  let best={rank:99,html:'',form:''},syn='';
+  const jobs=[];
+
+  // 낱말 형태들을 동시에 묻되, 화면은 다 모인 뒤 한 번만 그린다
+  forms.forEach((w,i)=>{
+    jobs.push(relay(isEn?'mw':'stdict',w).then(j=>{
+      const html=isEn?fmtMW(j):fmtStdict(j,w);
+      if(html&&i<best.rank)best={rank:i,html,form:w};
+    }).catch(()=>{}));
+  });
   if(isEn){
-    forms.forEach((w,i)=>jobs.push(
-      fetchT('https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(w),6000)
-        .then(r=>r.ok?r.json():null)
-        .then(j=>{ if(j)put(10+i,fmtDict(j,w),w); })
-        .catch(()=>{})
+    forms.slice(0,2).forEach(w=>jobs.push(
+      relay('mwth',w).then(j=>{ const h=fmtMWTh(j); if(h&&!syn)syn=h; }).catch(()=>{})
     ));
   }
-  forms.forEach((w,i)=>jobs.push(
-    wiktionary(lang,w).then(ex=>{ if(ex)put(30+i,fmtWik(ex,w),w); }).catch(()=>{})
-  ));
-  // 번역은 처음부터 함께 보낸다 — 사전이 늦거나 없을 때 바로 쓸 수 있게
-  jobs.push(
-    translateText(raw,isEn?'ko':'en')
-      .then(t=>{
-        if(my!==lookToken||!t)return;
-        LK.ko=transBlock(t,isEn?'한국어 뜻':'영어 뜻');
-        paintLookup();
-      })
-      .catch(()=>{})
-  );
 
-  await Promise.allSettled(jobs);
+  await Promise.race([
+    Promise.allSettled(jobs),
+    new Promise(r=>setTimeout(r,6000))
+  ]);
   if(my!==lookToken)return;
-  if(!LK.main&&!LK.ko&&!LK.syn){
-    LK.main='<div class="defblk"><ol><li>뜻을 찾지 못했습니다. 아래 "브라우저에서 열기"로 확인해 보세요.</li></ol></div>';
-  }else if(!LK.main&&LK.ko){
-    LK.note='<div class="findnote">사전에 없어 번역으로 보여 드립니다</div>';
+
+  if(best.html){
+    LK.note=(best.form!==raw)?'<div class="findnote">'+esc(raw)+' → '+esc(best.form)+'</div>':'';
+    LK.main=best.html;
+    LK.syn=syn;
+  }else{
+    LK.main='<div class="defblk"><ol><li>'
+      +(isEn?'Merriam-Webster':'표준국어대사전')
+      +'에서 찾지 못했습니다. 아래 "브라우저에서 열기"로 확인해 보세요.</li></ol></div>';
   }
   paintLookup();
 }
