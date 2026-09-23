@@ -107,7 +107,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
 .hlrect{position:absolute;pointer-events:none;border-radius:2px}
 .hlrect.sel2{background:var(--brass);opacity:.34;box-shadow:0 0 0 1px rgba(200,164,92,.55)}
 /* 범위를 끌어 조절하는 손잡이 — 글줄 아래 동그라미 */
-#grips{position:absolute;inset:0;pointer-events:none;z-index:10;display:none}
+#grips{position:absolute;inset:0;pointer-events:none;z-index:68;display:none}
 #grips.on{display:block}
 #grips .grip{
   position:absolute;width:46px;height:46px;transform:translateX(-50%);
@@ -162,30 +162,41 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
 .progline i{display:block;height:100%;background:var(--brass);width:0}
 .rbar .num{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 
-/* 선택 메뉴 */
+/* 선택 메뉴 — 킨들처럼 글 바로 위에 가로로 */
 .selmenu{
-  position:fixed;z-index:70;display:none;flex-direction:column;
-  background:#20262E;border:1px solid var(--line);border-radius:14px;
-  padding:6px;box-shadow:0 14px 38px rgba(0,0,0,.55);min-width:198px;max-width:240px;
+  position:fixed;z-index:70;display:none;align-items:stretch;gap:2px;
+  background:#20262E;border:1px solid var(--line);border-radius:14px;padding:5px;
+  box-shadow:0 12px 34px rgba(0,0,0,.55);max-width:calc(100vw - 16px);
 }
 .selmenu.on{display:flex}
-.selmenu .colors{display:flex;justify-content:space-between;gap:6px;padding:9px 10px 10px}
-.selmenu .colors button{
-  width:30px;height:30px;border-radius:50%;border:2px solid transparent;flex:0 0 auto;
+.selmenu .mi{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  min-width:54px;padding:8px 7px 7px;border-radius:10px;color:var(--text);font-size:12px;
+  white-space:nowrap;
 }
-.selmenu .colors button:hover{border-color:var(--text)}
-.selmenu .divider{height:1px;background:var(--line);margin:2px 4px 4px}
-.selmenu .item{
-  display:flex;align-items:center;gap:13px;padding:11px 12px;border-radius:9px;
-  font-size:14.5px;width:100%;text-align:left;color:var(--text);
+.selmenu .mi:hover{background:var(--shelf-hi)}
+.selmenu .mi svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round}
+.selmenu .dot{width:21px;height:21px;border-radius:50%;display:block}
+.selmenu .dot.sel{box-shadow:0 0 0 2px #20262E,0 0 0 4px var(--text)}
+.selmenu .ul{width:21px;height:21px;display:grid;place-items:end center;
+  font-family:var(--serif);font-size:15px;line-height:1;border-bottom:3px solid #D9483F;padding-bottom:1px}
+.selmenu .vsep{width:1px;background:var(--line);margin:7px 2px}
+.selmenu.off .mi.need{opacity:.3;pointer-events:none}
+
+/* 메뉴·창이 열려 있을 때 바깥 누름을 받아 닫기만 하는 투명 막 */
+#scrim{position:fixed;inset:0;z-index:65;display:none;background:transparent}
+#scrim.on{display:block}
+
+/* 각주 등으로 건너뛴 뒤 원래 자리로 돌아가는 단추 */
+#backJump{
+  position:fixed;left:14px;bottom:calc(env(safe-area-inset-bottom) + 62px);z-index:22;
+  display:none;align-items:center;gap:8px;padding:9px 12px 9px 14px;border-radius:999px;
+  background:#20262E;border:1px solid var(--line);color:var(--text);font-size:13.5px;
+  box-shadow:0 8px 22px rgba(0,0,0,.45);
 }
-.selmenu .item:hover{background:var(--shelf-hi)}
-.selmenu .item svg{
-  width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;
-  stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto;
-}
-.selmenu .item.quit{color:var(--muted);font-size:13.5px}
-.selmenu.off .colors button,.selmenu.off .item:not(.quit){opacity:.3;pointer-events:none}
+#backJump.on{display:flex}
+#backJump .x{color:var(--muted);padding:0 2px 0 6px;font-size:15px}
 
 /* 시트 */
 .sheet{position:fixed;inset:0;z-index:40;background:rgba(10,13,16,.6);display:none;align-items:flex-end;justify-content:center}
@@ -307,7 +318,9 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
 </section>
 
 <!-- 선택 메뉴 -->
+<div id="scrim"></div>
 <div class="selmenu" id="selmenu"></div>
+<button id="backJump"><span>← 원래 자리로</span><span class="x" id="backJumpX">×</span></button>
 
 <!-- 책 정보 -->
 <div class="sheet" id="sheetBook"><div class="box">
@@ -462,7 +475,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
    EPUB + PDF / 하이라이트·밑줄·메모 / 책갈피 / 분류 관리
    ════════════════════════════════════════════ */
 
-const APP_VERSION='2.5 · 2026-09-18';
+const APP_VERSION='2.6 · 2026-09-18';
 const SCOPES='https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.appdata';
 const STATE_FILE='seojae-state.json';
 const DEFAULT_CID='176016755027-u2v546hup548s1lg6j99023u8n2d6e0i.apps.googleusercontent.com';
@@ -885,7 +898,7 @@ async function fetchBook(b){
 
 async function openBook(b){
   current=b;kind=b.kind;
-  findQ='';findHits=[];findMsg='';findStop=true;noteTab='toc';
+  findQ='';findHits=[];findMsg='';findStop=true;noteTab='toc';clearBack();
   const i=bookInfo(b);
   $('#rtitle').textContent=i.title;
   $('#rload').style.display='grid';$('#rload').textContent='책을 여는 중…';
@@ -978,7 +991,15 @@ function hookEpubContent(){
     const l=doc.createElement('link');l.rel='stylesheet';
     l.href='https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&family=Noto+Sans+KR:wght@400;500&display=swap';
     doc.head.appendChild(l);
+    // 각주·상호참조 링크를 누르면 지금 자리를 먼저 기억한다
     doc.addEventListener('click',e=>{
+      const a=e.target&&e.target.closest&&e.target.closest('a[href]');
+      if(!a)return;
+      const href=a.getAttribute('href')||'';
+      if(!/^(https?:|mailto:|tel:)/i.test(href))rememberSpot();
+    },true);
+    doc.addEventListener('click',e=>{
+      if(e.target&&e.target.closest&&e.target.closest('a[href]'))return;   // 링크는 책이 알아서 이동
       if(sel2){
         if(Date.now()-sel2.t<320)return;        // 길게 누른 직후의 클릭은 무시
         cancelSel2();                            // 범위 조절은 손잡이로만 한다
@@ -991,7 +1012,11 @@ function hookEpubContent(){
       if(has)return;
       hideSel();
       const hitId=markAt(px,py);
-      if(hitId){ openNote(hitId); return; }          // 표시를 누르면 메모가 열린다
+      if(hitId){
+        const h=epubHits.find(x=>x.id===hitId),r=h&&h.rects[0];
+        openMarkMenu(hitId,r?{top:r.y,bottom:r.y+r.h,left:r.x,width:r.w}:null);
+        return;
+      }          // 표시를 누르면 메모가 열린다
       if(view.mode==='scroll')return toggleBars();
       const lo=bd.l+(bd.r-bd.l)*0.28, hi=bd.l+(bd.r-bd.l)*0.72;
       if(x<lo)turn('prev');else if(x>hi)turn('next');else toggleBars();
@@ -1388,6 +1413,7 @@ function openPane(mode,text){
   $('#paneOut').textContent='찾는 중…';
   $('#paneLang').style.display=(mode==='tr'?'':'none');
   $('#pane').classList.add('on');
+  updateScrim();
   placePane();
   runPane();
 }
@@ -1963,75 +1989,162 @@ function updateProgress(){
 
 /* ---------- 선택 메뉴 ---------- */
 let pending=null;
-function menuItem(label,svg,fn,cls){
+/* ── 선택 메뉴 (킨들 방식) ────────────────────────────────────
+   main   : 하이라이트 · 밑줄 · 메모 · 사전 · 번역 · 복사
+   palette: 하이라이트를 막 칠했거나 기존 표시를 눌렀을 때 — 색 바꾸기 · 메모 · 삭제 */
+const COLOR_NAMES=['노랑','초록','파랑','분홍'];
+const ICONS={
+  back:'<path d="M15 18l-6-6 6-6"/>',
+  note:'<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  dict:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+  tr:'<path d="M4 5h10M9 3v2c0 4-2.5 7-5 8M6 10c1.5 3 4 5 7 6M14 21l4.5-11L23 21M16 17h5"/>',
+  copy:'<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
+  trash:'<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>'
+};
+let menuMode='main',menuMark=null,lastSelRect=null;
+
+function mi(label,inner,fn,cls){
   const b=document.createElement('button');
-  b.className='item'+(cls?' '+cls:'');
-  b.innerHTML='<svg viewBox="0 0 24 24">'+svg+'</svg><span>'+label+'</span>';
-  b.onclick=fn;
+  b.className='mi'+(cls?' '+cls:'');
+  b.innerHTML=inner+(label?'<span>'+label+'</span>':'');
+  b.onclick=e=>{e.stopPropagation();fn();};
   return b;
 }
-function buildSelMenu(){
-  const m=$('#selmenu');m.innerHTML='';
-  const row=document.createElement('div');row.className='colors';
-  MARK_COLORS.forEach(c=>{
-    const b=document.createElement('button');b.title='하이라이트';
-    b.style.background=c;
-    b.onclick=()=>addMark('highlight',c);
-    row.appendChild(b);
-  });
-  const ulb=document.createElement('button');ulb.title='밑줄';
-  ulb.style.background='transparent';
-  ulb.style.border='2px solid '+UL_COLOR;
-  ulb.style.boxShadow='inset 0 -7px 0 -4px '+UL_COLOR;
-  ulb.onclick=()=>addMark('underline',UL_COLOR);
-  row.appendChild(ulb);
-  m.appendChild(row);
+const svg=p=>'<svg viewBox="0 0 24 24">'+p+'</svg>';
+const vsep=()=>Object.assign(document.createElement('div'),{className:'vsep'});
 
-  const dv=document.createElement('div');dv.className='divider';m.appendChild(dv);
-
-  m.appendChild(menuItem('메모 추가',
-    '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
-    ()=>{const id=addMark('note',UL_COLOR,true);if(id)openNote(id);}));
-
-  m.appendChild(menuItem('번역',
-    '<path d="M4 5h10M9 3v2c0 4-2.5 7-5 8M6 10c1.5 3 4 5 7 6M14 21l4.5-11L23 21M16 17h5"/>',
-    ()=>{const t=pending&&pending.text;if(!t)return;openPane('tr',t);hideSel();}));
-
-  m.appendChild(menuItem('사전',
-    '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
-    ()=>{const t=pending&&pending.text;if(!t)return;openPane('dc',t);hideSel();}));
-
-  m.appendChild(menuItem('복사',
-    '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
-    ()=>{if(pending)navigator.clipboard.writeText(pending.text).then(()=>toast('복사했습니다'));
-      clearSelection();hideSel();}));
-
-  m.appendChild(menuItem('그만두기',
-    '<path d="M18 6L6 18M6 6l12 12"/>',
-    ()=>cancelSel2(),'quit'));
+function menuText(){
+  if(menuMark){const m=findMark(menuMark);return m?m.text:'';}
+  return pending?pending.text:'';
 }
-let lastSelRect=null;
-function showSel(rect){
-  if(rect)lastSelRect=rect;
-  const m=$('#selmenu');
-  m.classList.add('on');
-  m.classList.toggle('off',!pending);
-  const w=m.offsetWidth||200,h=m.offsetHeight||280;
-  const pad=8;
-  let top,left;
-  if(rect){
-    // 고른 글 바로 아래에, 자리가 모자라면 위에 붙인다
-    top=rect.bottom+8;
-    if(top+h>window.innerHeight-pad)top=rect.top-h-8;
-    left=rect.left;
-  }else{
-    top=window.innerHeight/2-h/2;left=window.innerWidth/2-w/2;
+function renderMenu(){
+  const m=$('#selmenu');m.innerHTML='';
+  if(menuMode==='palette'&&menuMark){
+    const mk=findMark(menuMark);
+    m.appendChild(mi('',svg(ICONS.back),()=>{menuMode='main';renderMenu();placeMenu();}));
+    m.appendChild(vsep());
+    MARK_COLORS.forEach((c,i)=>{
+      const on=mk&&mk.style==='highlight'&&mk.color===c;
+      m.appendChild(mi(COLOR_NAMES[i],'<span class="dot'+(on?' sel':'')+'" style="background:'+c+'"></span>',
+        ()=>recolorMark(c)));
+    });
+    m.appendChild(vsep());
+    m.appendChild(mi('메모',svg(ICONS.note),()=>{const id=menuMark;closeMenu();openNote(id);}));
+    m.appendChild(mi('삭제',svg(ICONS.trash),()=>deleteMenuMark()));
+    return;
   }
+  m.appendChild(mi('하이라이트','<span class="dot" style="background:'+MARK_COLORS[0]+'"></span>',doHighlight,'need'));
+  m.appendChild(mi('밑줄','<span class="ul">가</span>',doUnderline,'need'));
+  m.appendChild(mi('메모',svg(ICONS.note),doNote,'need'));
+  m.appendChild(vsep());
+  m.appendChild(mi('사전',svg(ICONS.dict),()=>{const t=menuText();if(t)openPane('dc',t);hideMenuOnly();},'need'));
+  m.appendChild(mi('번역',svg(ICONS.tr),()=>{const t=menuText();if(t)openPane('tr',t);hideMenuOnly();},'need'));
+  m.appendChild(mi('복사',svg(ICONS.copy),()=>{
+    const t=menuText();
+    if(t)navigator.clipboard.writeText(t).then(()=>toast('복사했습니다'));
+    closeMenu();
+  },'need'));
+}
+function buildSelMenu(){ renderMenu(); }
+
+/* 고른 글 바로 위, 가운데에 붙인다. 위에 자리가 없으면 아래로 */
+function placeMenu(){
+  const m=$('#selmenu'),r=lastSelRect;
+  const w=m.offsetWidth||360,h=m.offsetHeight||64,pad=8;
+  let top,left;
+  if(r){
+    top=r.top-h-10;
+    if(top<pad)top=r.bottom+12;
+    left=r.left+(r.width||0)/2-w/2;
+  }else{ top=window.innerHeight/2-h/2; left=window.innerWidth/2-w/2; }
   m.style.top=Math.max(pad,Math.min(top,window.innerHeight-h-pad))+'px';
   m.style.left=Math.max(pad,Math.min(left,window.innerWidth-w-pad))+'px';
 }
-function hideSel(){$('#selmenu').classList.remove('on');pending=null;}
-function hideSelKeep(){$('#selmenu').classList.remove('on');}
+function showSel(rect){
+  if(rect)lastSelRect=rect;
+  if(!menuMark)menuMode='main';
+  const m=$('#selmenu');
+  renderMenu();
+  m.classList.add('on');
+  m.classList.toggle('off',!pending&&!menuMark);
+  placeMenu();
+  updateScrim();
+}
+/* 메뉴만 감추고 고른 상태·막은 유지 (사전·번역 창을 띄울 때) */
+function hideMenuOnly(){ $('#selmenu').classList.remove('on'); updateScrim(); }
+
+/* 표시·선택·메뉴·창을 모두 정리 — 바깥을 누르면 이것이 불린다 */
+function closeMenu(){
+  menuMode='main';menuMark=null;
+  $('#selmenu').classList.remove('on');
+  try{ if(pending&&pending.contents)pending.contents.window.getSelection().removeAllRanges(); }catch(e){}
+  try{ window.getSelection().removeAllRanges(); }catch(e){}
+  pending=null;sel2=null;gripDrag=null;
+  hideGrips();
+  if(kind==='epub')paintEpubMarks();
+  updateScrim();
+}
+function hideSel(){ closeMenu(); }
+function hideSelKeep(){ $('#selmenu').classList.remove('on'); }
+
+function updateScrim(){
+  const open=$('#selmenu').classList.contains('on')||$('#pane').classList.contains('on');
+  $('#scrim').classList.toggle('on',open);
+}
+function closeAll(){
+  lookToken++;
+  $('#pane').classList.remove('on');
+  closeMenu();
+}
+/* 바깥을 누르면 닫기만 한다 — 아래의 책으로는 전달되지 않아 쪽이 넘어가지 않는다 */
+$('#scrim').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();closeAll();});
+$('#scrim').addEventListener('touchstart',e=>{e.stopPropagation();},{passive:true});
+
+/* ── 메뉴 동작 ── */
+function repaintMark(m){ if(kind==='epub')paintEpubMarks(); else if(m)drawPdfMarks(m.page); }
+function doHighlight(){
+  if(menuMark){menuMode='palette';renderMenu();placeMenu();return;}
+  const id=addMark('highlight',MARK_COLORS[0],true,true);
+  if(!id)return;
+  menuMark=id;menuMode='palette';
+  const m=$('#selmenu');
+  renderMenu();m.classList.add('on');m.classList.remove('off');
+  placeMenu();updateScrim();
+}
+function doUnderline(){
+  if(menuMark){
+    const mk=findMark(menuMark);
+    if(mk){mk.style='underline';mk.color=UL_COLOR;mk.at=Date.now();touch(current.id);repaintMark(mk);}
+    closeMenu();toast('밑줄로 바꿨습니다');return;
+  }
+  addMark('underline',UL_COLOR);closeMenu();
+}
+function doNote(){
+  let id=menuMark;
+  if(!id)id=addMark('note',UL_COLOR,true,true);
+  closeMenu();
+  if(id)openNote(id);
+}
+function recolorMark(c){
+  const mk=findMark(menuMark);if(!mk)return;
+  mk.color=c;mk.style='highlight';mk.at=Date.now();
+  touch(current.id);repaintMark(mk);
+  renderMenu();placeMenu();
+}
+function deleteMenuMark(){
+  const mk=findMark(menuMark);
+  if(mk){mk.del=true;mk.at=Date.now();touch(current.id);repaintMark(mk);}
+  closeMenu();toast('지웠습니다');
+}
+/* 이미 칠한 곳을 누르면 그 표시의 색 메뉴를 연다 */
+function openMarkMenu(id,rect){
+  pending=null;sel2=null;hideGrips();
+  menuMark=id;menuMode='palette';
+  if(rect)lastSelRect=rect;
+  const m=$('#selmenu');
+  renderMenu();m.classList.add('on');m.classList.remove('off');
+  placeMenu();updateScrim();
+}
 function clearSelection(){
   sel2=null;gripDrag=null;
   hideGrips();
@@ -2040,7 +2153,7 @@ function clearSelection(){
   if(kind==='epub')paintEpubMarks();
 }
 
-function addMark(style,color,silent){
+function addMark(style,color,silent,keep){
   if(!pending)return null;
   const s=bookState(current.id);
   if(!s.marks)s.marks=[];
@@ -2050,7 +2163,8 @@ function addMark(style,color,silent){
   s.marks.push(m);touch(current.id);
   sel2=null;hideGrips();
   if(kind==='epub')paintEpubMarks();else drawPdfMarks(m.page);
-  clearSelection();hideSel();
+  clearSelection();
+  if(keep)pending=null; else hideSel();
   if(!silent)toast(style==='underline'?'밑줄을 그었습니다':'하이라이트했습니다');
   return m.id;
 }
@@ -2157,6 +2271,7 @@ function renderFind(el){
     b.innerHTML='<span class="ex">'+h.html+'</span><span class="wh">'+esc(h.where||'')+'</span>';
     b.onclick=()=>{
       closeSheet('sheetNotes');
+      rememberSpot();
       if(kind==='epub')rendition.display(h.cfi).then(paintSoon);
       else gotoPdfPage(h.page);
     };
@@ -2322,6 +2437,7 @@ function spineByFile(href){
 }
 async function gotoHref(href){
   if(!href||!rendition)return;
+  rememberSpot();
   const frag=(String(href).split('#')[1])||'';
   const bare=String(href).split('#')[0];
   const cands=[href];
@@ -2355,7 +2471,22 @@ async function gotoHref(href){
   }
   toast('이 항목으로는 이동할 수 없습니다');
 }
+let backStack=[];
+function rememberSpot(){
+  if(kind!=='epub'||!lastCfi)return;
+  if(backStack[backStack.length-1]!==lastCfi)backStack.push(lastCfi);
+  if(backStack.length>20)backStack.shift();
+  $('#backJump').classList.add('on');
+}
+function clearBack(){ backStack=[]; $('#backJump').classList.remove('on'); }
+$('#backJump').onclick=e=>{
+  if(e.target&&e.target.id==='backJumpX'){ clearBack(); return; }
+  const c=backStack.pop();
+  if(!backStack.length)$('#backJump').classList.remove('on');
+  if(c&&rendition)rendition.display(c).then(paintSoon);
+};
 function jumpTo(m){
+  rememberSpot();
   if(kind==='epub'&&(m.cfi))rendition.display(m.cfi);
   else if(kind==='pdf'&&m.page)gotoPdfPage(m.page);
 }
@@ -2422,7 +2553,8 @@ function backToShelf(){
   if(pdfDoc){pdfDoc.destroy();pdfDoc=null;}
   $('#pdfDoc').innerHTML='';pdfSizes.clear();
   current=null;kind=null;lastCfi=null;sel2=null;gripDrag=null;
-  hideGrips();$('#pane').classList.remove('on');
+  hideGrips();$('#pane').classList.remove('on');clearBack();
+  $('#selmenu').classList.remove('on');updateScrim();
   show('library');renderShelf();
 }
 $('#btnBack').onclick=backToShelf;
