@@ -196,6 +196,10 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
   box-shadow:0 8px 22px rgba(0,0,0,.45);
 }
 #backJump.on{display:flex}
+#diag{position:fixed;right:10px;bottom:calc(env(safe-area-inset-bottom) + 62px);z-index:23;display:none;
+  background:rgba(15,19,24,.92);border:1px solid var(--line);border-radius:8px;padding:6px 9px;
+  font:11px/1.45 ui-monospace,Menlo,monospace;color:#9FB3C8;white-space:pre;pointer-events:none}
+#diag.on{display:block}
 #backJump .x{color:var(--muted);padding:0 2px 0 6px;font-size:15px}
 
 /* 시트 */
@@ -320,6 +324,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
 <!-- 선택 메뉴 -->
 <div id="scrim"></div>
 <div class="selmenu" id="selmenu"></div>
+<div id="diag"></div>
 <button id="backJump"><span>← 원래 자리로</span><span class="x" id="backJumpX">×</span></button>
 
 <!-- 책 정보 -->
@@ -433,6 +438,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
   <div class="field"><label>클라이언트 ID</label><input id="setCid"></div>
   <button class="primary" id="setSave" style="width:100%">저장하고 다시 읽기</button>
   <button class="ghost" id="setSync2" style="width:100%;margin-top:10px">지금 다른 기기와 맞추기</button>
+  <button class="ghost" id="setDiag" style="width:100%;margin-top:10px">쪽 넘김 진단 표시 켜기</button>
   <button class="ghost" id="setClearCache" style="width:100%;margin-top:10px">받아둔 책 파일 비우기</button>
   <button class="ghost" id="setOut" style="width:100%;margin-top:10px">연결 해제</button>
   <div style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line);display:flex;align-items:center;gap:12px">
@@ -475,7 +481,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
    EPUB + PDF / 하이라이트·밑줄·메모 / 책갈피 / 분류 관리
    ════════════════════════════════════════════ */
 
-const APP_VERSION='3.0 · 2026-09-19';
+const APP_VERSION='3.1 · 2026-09-19';
 const SCOPES='https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.appdata';
 const STATE_FILE='seojae-state.json';
 const DEFAULT_CID='176016755027-u2v546hup548s1lg6j99023u8n2d6e0i.apps.googleusercontent.com';
@@ -932,6 +938,7 @@ async function openEpub(buf,i){
   hookEpubContent();
   await book.ready;
   await rendition.display(i.cfi||undefined);
+  patchPaging();
   $('#rload').style.display='none';        // 본문이 나온 순간 안내를 걷는다
   try{ applyEpubMarks(); }catch(e){ console.warn('표시 복원 실패',e); }
   try{
@@ -1073,7 +1080,7 @@ function hookEpubContent(){
   });
   rendition.on('relocated',loc=>{
     if(resizing)return;               // 다시 배치하는 도중의 중간 위치는 기록하지 않는다
-    lastCfi=loc.start.cfi;updateProgress();paintSoon();
+    lastCfi=loc.start.cfi;updateProgress();paintSoon();updateDiag();
     if(sel2){sel2=null;pending=null;hideSel();hideGrips();}
     const s=bookState(current.id);s.cfi=lastCfi;s.at=Date.now();saveLocal();queueSync();
     updateBmIcon();
@@ -1939,6 +1946,80 @@ $('#pdfWrap').addEventListener('touchend',e=>{
 },{passive:true});
 
 /* ---------- 공통 이동 ---------- */
+/* ── epub.js 쪽 넘김 보정 ─────────────────────────────────────
+   epub.js 0.3.93 의 next() 는  scrollLeft + offsetWidth + delta <= scrollWidth  로
+   "이 장에 다음 화면이 남았는가"를 판단한다. 정상이면 끝에서 두 번째 화면에서
+   양변이 정확히 같아야 마지막 화면으로 넘어간다.
+   그런데 폴드처럼 화면 배율이 소수(약 2.6배)인 기기에서는 크롬이 scrollLeft 를
+   832.38 같은 소수로 돌려주고 scrollWidth 는 정수로 반올림한다. 그 작은 차이로
+   "남은 화면 없음"이 되어 장의 마지막 화면을 건너뛴다.
+   prev() 도 첫 화면에서 scrollLeft 가 0.38 이면 앞에 쪽이 있다고 오판해 한 번 헛돈다.
+   그래서 위치를 "몇 번째 화면인가"라는 정수로 바꿔서 판단하고, 정확한 자리로 옮긴다. */
+function patchPaging(){
+  const mgr=rendition&&rendition.manager;
+  if(!mgr||mgr.__pagingPatched)return;
+  mgr.__pagingPatched=true;
+  const origNext=mgr.next, origPrev=mgr.prev;
+  const ltr=m=>m.isPaginated&&m.settings&&m.settings.axis==='horizontal'
+             &&(!m.settings.direction||m.settings.direction==='ltr')
+             &&!m.settings.fullsize&&m.views&&m.views.length&&m.layout&&m.layout.delta>0;
+  mgr.next=function(){
+    if(!ltr(this))return origNext.apply(this,arguments);
+    const c=this.container,d=this.layout.delta;
+    const idx=Math.floor(c.scrollLeft/d+0.02);                 // 지금 몇 번째 화면 (소수 오차 제거)
+    const screens=Math.max(1,Math.ceil(c.scrollWidth/d-0.05));  // 화면 수 (반 화면도 하나로)
+    if(idx+1<screens){
+      const before=c.scrollLeft;
+      this.scrollTo((idx+1)*d,0,true);
+      if(Math.abs(c.scrollLeft-before)>=1){ this.scrollLeft=c.scrollLeft; return; }
+      // 더 갈 자리가 없으면(끝에 닿음) 아래로 내려가 다음 장
+    }
+    return origNext.apply(this,arguments);
+  };
+  mgr.prev=function(){
+    if(!ltr(this))return origPrev.apply(this,arguments);
+    const c=this.container,d=this.layout.delta;
+    const idx=Math.ceil(c.scrollLeft/d-0.02);                  // 반쯤 걸친 화면에서도 바로 앞 화면으로
+    if(idx>0){
+      this.scrollTo((idx-1)*d,0,true);
+      this.scrollLeft=c.scrollLeft;
+      return;
+    }
+    this.scrollTo(0,0,true);                                   // 첫 화면 → 앞 장 (0.38 같은 찌꺼기 제거)
+    return origPrev.apply(this,arguments);
+  };
+  patchViews();
+}
+/* 두 쪽 보기에서 장의 쪽 수가 홀수로 잡히면 마지막 반쪽이 화면 경계에 걸려 건너뛰어진다.
+   epub.js 는 빈 쪽을 채워 짝수로 맞추게 되어 있지만(forceEvenPages), 실제 기기에서
+   그게 빠지는 경우가 있어 앱에서 한 번 더 확인해 홀수면 빈 쪽을 직접 붙인다. */
+function patchViews(){
+  const V=rendition&&rendition.View;
+  if(!V||!V.prototype||V.prototype.__evenPatched)return;
+  const origExpand=V.prototype.expand;
+  V.prototype.expand=function(){
+    const r=origExpand.apply(this,arguments);
+    try{ padEven(this); }catch(e){}
+    return r;
+  };
+  V.prototype.__evenPatched=true;
+  // 이미 떠 있는 화면에도 적용
+  try{
+    const mgr=rendition.manager;
+    const vs=(mgr&&mgr.views&&(mgr.views.all?mgr.views.all():mgr.views._views))||[];
+    vs.forEach(v=>{ try{ padEven(v); }catch(e){} });
+  }catch(e){}
+}
+function padEven(view){
+  const L=view.layout;
+  if(!L||L.divisor<2||L.name!=='reflowable')return;
+  if(view.settings&&view.settings.axis&&view.settings.axis!=='horizontal')return;
+  const pw=L.pageWidth,w=view._width;
+  if(!(pw>0)||!(w>0))return;
+  const cols=Math.round(w/pw);
+  if(cols%2===1)view.reframe(cols*pw+pw,view._height);
+}
+
 let turnBusy=false;
 function turn(dir){
   releaseDrag();
@@ -1954,10 +2035,11 @@ function turn(dir){
   // 넘기는 도중 들어온 요청은 버린다 — 쌓이면 epub.js 가 전부 실행해 여러 장이 넘어간다
   if(turnBusy||resizing)return;
   turnBusy=true;
+  patchPaging();
   // "이 장에 남은 쪽이 있는가"를 epub.js 가 판단하기 직전에 길이를 최신으로
   try{ (rendition.getContents()||[]).forEach(c=>{ if(c&&c.resizeCheck)c.resizeCheck(); }); }catch(e){}
   const v=$('#viewer');v.classList.add('turning');
-  const done=()=>{ turnBusy=false; setTimeout(()=>v.classList.remove('turning'),40); };
+  const done=()=>{ turnBusy=false; setTimeout(()=>v.classList.remove('turning'),40); setTimeout(updateDiag,80); };
   const safety=setTimeout(done,1200);
   (dir==='next'?rendition.next():rendition.prev())
     .then(()=>{clearTimeout(safety);done();},()=>{clearTimeout(safety);done();});
@@ -2565,7 +2647,7 @@ function backToShelf(){
   if(pdfDoc){pdfDoc.destroy();pdfDoc=null;}
   $('#pdfDoc').innerHTML='';pdfSizes.clear();
   current=null;kind=null;lastCfi=null;sel2=null;gripDrag=null;
-  hideGrips();$('#pane').classList.remove('on');clearBack();
+  hideGrips();$('#pane').classList.remove('on');clearBack();$('#diag').classList.remove('on');
   $('#selmenu').classList.remove('on');updateScrim();
   show('library');renderShelf();
 }
@@ -2645,7 +2727,7 @@ $('#pgGo').onclick=()=>{
 /* ---------- 설정 시트 ---------- */
 $('#btnSettings').onclick=()=>{
   $('#setFid').value=cfg.fid;$('#setCid').value=cfg.cid;$('#setDict').value=cfg.dict;
-  $('#setVer').textContent=APP_VERSION;
+  $('#setVer').textContent=APP_VERSION;syncDiagBtn();
   $('#setSync').textContent=state.lastSync?('마지막 동기화 '+new Date(state.lastSync).toLocaleString('ko-KR')):'아직 동기화한 적 없음';
   syncViewUI();openSheet('sheetSet');
 };
@@ -2677,6 +2759,31 @@ $('#setSync2').onclick=async()=>{
     toast('다른 기기와 맞췄습니다');
   }catch(e){ toast('맞추지 못했습니다. 다시 연결해 주세요'); }
 };
+function diagOn(){ return localStorage.getItem('diag')==='1'; }
+function syncDiagBtn(){ $('#setDiag').textContent=diagOn()?'쪽 넘김 진단 표시 끄기':'쪽 넘김 진단 표시 켜기'; }
+$('#setDiag').onclick=()=>{
+  localStorage.setItem('diag',diagOn()?'0':'1');syncDiagBtn();updateDiag();
+  toast(diagOn()?'책을 열면 오른쪽 아래에 숫자가 보입니다':'진단 표시를 껐습니다');
+};
+/* 쪽 넘김 판단에 쓰이는 실제 숫자를 보여 준다 — 문제가 남으면 이 화면을 보내 주시면 된다 */
+function updateDiag(){
+  const el=$('#diag');
+  if(!diagOn()||kind!=='epub'||!rendition||!rendition.manager){ el.classList.remove('on'); return; }
+  try{
+    const m=rendition.manager,c=m.container,L=m.layout||{};
+    const d=L.delta||1,pw=L.pageWidth||1;
+    const vs=(m.views&&(m.views.all?m.views.all():m.views._views))||[];
+    const vw=vs[0]&&vs[0]._width;
+    el.textContent=
+      '화면 '+(Math.floor(c.scrollLeft/d+0.02)+1)+'/'+Math.ceil(c.scrollWidth/d-0.05)
+      +'  쪽 '+(vw?(vw/pw).toFixed(2):'-')
+      +'\nscrollLeft '+c.scrollLeft.toFixed(2)+'  delta '+d
+      +'\nscrollWidth '+c.scrollWidth+'  offsetW '+c.offsetWidth
+      +'\n배율 '+(window.devicePixelRatio||1).toFixed(3)+'  두쪽 '+(L.divisor||1)
+      +'  v'+APP_VERSION.split(' ')[0];
+    el.classList.add('on');
+  }catch(e){ el.textContent='진단 오류: '+e.message; el.classList.add('on'); }
+}
 $('#setClearCache').onclick=async()=>{await idbClear('files');await idbClear('locs');toast('받아둔 책 파일을 비웠습니다');};
 $('#setOut').onclick=()=>{
   if(accessToken)google.accounts.oauth2.revoke(accessToken,()=>{});
