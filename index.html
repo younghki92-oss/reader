@@ -475,7 +475,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
    EPUB + PDF / 하이라이트·밑줄·메모 / 책갈피 / 분류 관리
    ════════════════════════════════════════════ */
 
-const APP_VERSION='2.6 · 2026-09-18';
+const APP_VERSION='2.7 · 2026-09-18';
 const SCOPES='https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.appdata';
 const STATE_FILE='seojae-state.json';
 const DEFAULT_CID='176016755027-u2v546hup548s1lg6j99023u8n2d6e0i.apps.googleusercontent.com';
@@ -2089,6 +2089,8 @@ function hideSelKeep(){ $('#selmenu').classList.remove('on'); }
 
 function updateScrim(){
   const open=$('#selmenu').classList.contains('on')||$('#pane').classList.contains('on');
+  const was=$('#scrim').classList.contains('on');
+  if(open!==was)scrimArmed=false;        // 막이 새로 깔리거나 걷힐 때마다 초기화
   $('#scrim').classList.toggle('on',open);
 }
 function closeAll(){
@@ -2096,9 +2098,22 @@ function closeAll(){
   $('#pane').classList.remove('on');
   closeMenu();
 }
-/* 바깥을 누르면 닫기만 한다 — 아래의 책으로는 전달되지 않아 쪽이 넘어가지 않는다 */
-$('#scrim').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();closeAll();});
-$('#scrim').addEventListener('touchstart',e=>{e.stopPropagation();},{passive:true});
+/* 바깥을 누르면 닫기만 한다 — 아래의 책으로는 전달되지 않아 쪽이 넘어가지 않는다.
+
+   주의: 안드로이드는 짧게(0.5초 미만) 누르고 떼면 클릭 신호를 한 번 더 보낸다.
+   길게 눌러 메뉴가 뜬 직후 손을 떼면, 그 클릭이 방금 깔린 막에 떨어져
+   메뉴가 바로 닫혀 버린다. 그래서 막 위에서 "시작된" 누름만 닫기로 인정한다. */
+let scrimArmed=false;
+const armScrim=()=>{scrimArmed=true;};
+$('#scrim').addEventListener('pointerdown',armScrim);
+$('#scrim').addEventListener('touchstart',e=>{e.stopPropagation();armScrim();},{passive:true});
+$('#scrim').addEventListener('mousedown',armScrim);
+$('#scrim').addEventListener('click',e=>{
+  e.preventDefault();e.stopPropagation();
+  if(!scrimArmed)return;                 // 책에서 시작된 누름의 뒤늦은 클릭 — 무시
+  scrimArmed=false;
+  closeAll();
+});
 
 /* ── 메뉴 동작 ── */
 function repaintMark(m){ if(kind==='epub')paintEpubMarks(); else if(m)drawPdfMarks(m.page); }
