@@ -475,7 +475,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
    EPUB + PDF / 하이라이트·밑줄·메모 / 책갈피 / 분류 관리
    ════════════════════════════════════════════ */
 
-const APP_VERSION='2.9 · 2026-09-19';
+const APP_VERSION='3.0 · 2026-09-19';
 const SCOPES='https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.appdata';
 const STATE_FILE='seojae-state.json';
 const DEFAULT_CID='176016755027-u2v546hup548s1lg6j99023u8n2d6e0i.apps.googleusercontent.com';
@@ -991,6 +991,18 @@ function hookEpubContent(){
     const l=doc.createElement('link');l.rel='stylesheet';
     l.href='https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&family=Noto+Sans+KR:wght@400;500&display=swap';
     doc.head.appendChild(l);
+
+    /* epub.js 0.3.93 은 폰트가 도착한 뒤 장의 길이를 다시 재는 기능이 꺼져 있다
+       (contents.js 387줄 fontLoadListeners 주석 처리). 한글 웹폰트가 늦게 도착해
+       글이 길어지면 epub.js 는 옛 길이로 알고 있어서, 장 끝의 반 쪽을 건너뛴다.
+       폰트가 도착할 때마다 다시 재게 한다. */
+    const remeasure=()=>{ try{ contents.resizeCheck&&contents.resizeCheck(); }catch(e){} };
+    l.addEventListener('load',()=>{ setTimeout(remeasure,60); setTimeout(remeasure,500); });
+    if(doc.fonts){
+      try{ doc.fonts.ready.then(()=>setTimeout(remeasure,30)); }catch(e){}
+      try{ doc.fonts.addEventListener('loadingdone',()=>setTimeout(remeasure,30)); }catch(e){}
+    }
+    setTimeout(remeasure,1200); setTimeout(remeasure,3000);
     // 각주·상호참조 링크를 누르면 지금 자리를 먼저 기억한다
     doc.addEventListener('click',e=>{
       const a=e.target&&e.target.closest&&e.target.closest('a[href]');
@@ -1942,6 +1954,8 @@ function turn(dir){
   // 넘기는 도중 들어온 요청은 버린다 — 쌓이면 epub.js 가 전부 실행해 여러 장이 넘어간다
   if(turnBusy||resizing)return;
   turnBusy=true;
+  // "이 장에 남은 쪽이 있는가"를 epub.js 가 판단하기 직전에 길이를 최신으로
+  try{ (rendition.getContents()||[]).forEach(c=>{ if(c&&c.resizeCheck)c.resizeCheck(); }); }catch(e){}
   const v=$('#viewer');v.classList.add('turning');
   const done=()=>{ turnBusy=false; setTimeout(()=>v.classList.remove('turning'),40); };
   const safety=setTimeout(done,1200);
