@@ -475,7 +475,7 @@ g[class^="hl-"] rect, g[class*=" hl-"] rect{stroke:none}
    EPUB + PDF / 하이라이트·밑줄·메모 / 책갈피 / 분류 관리
    ════════════════════════════════════════════ */
 
-const APP_VERSION='2.8 · 2026-09-18';
+const APP_VERSION='2.9 · 2026-09-19';
 const SCOPES='https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.appdata';
 const STATE_FILE='seojae-state.json';
 const DEFAULT_CID='176016755027-u2v546hup548s1lg6j99023u8n2d6e0i.apps.googleusercontent.com';
@@ -1048,6 +1048,7 @@ function hookEpubContent(){
     /* 마우스로 끌어 고르는 동안 브라우저가 본문을 옆으로 미는 것을 막는다.
        감시자는 바깥에 하나만 두어 쪽을 넘길 때마다 쌓이지 않게 한다. */
     doc.addEventListener('mousedown',()=>{
+      if(TOUCH)return;       // 안드로이드의 가짜 mousedown 에 잠금이 켜지면 쪽이 여러 장 건너뛴다
       releaseDrag();
       const fr=doc.defaultView.frameElement,el=scrollBoxOf(fr),win=doc.defaultView;
       dragLock={el,left:el?el.scrollLeft:0,win,winX:win.scrollX||0};
@@ -1057,49 +1058,9 @@ function hookEpubContent(){
     doc.addEventListener('mousemove',holdScroll);
     doc.addEventListener('mouseup',releaseDrag);
     doc.addEventListener('mouseleave',releaseDrag);
-
-    doc.addEventListener('keydown',onKey);
-
-    /* 마우스로 끌어 고르는 동안, 브라우저가 본문을 옆으로 밀어
-       쪽 위치가 어긋나는 것을 막는다. 쪽은 메뉴의 화살표로만 넘긴다. */
-    let dragging=false,lockEl=null,lockLeft=0,lockWinX=0;
-    const boxOf=fr=>{
-      let el=fr&&fr.parentElement;
-      while(el&&el!==document.body){
-        const st=getComputedStyle(el);
-        if(st.overflow!=='visible'||st.overflowX!=='visible')return el;
-        el=el.parentElement;
-      }
-      return null;
-    };
-    const hold=()=>{
-      if(!dragging)return;
-      if(lockEl&&lockEl.scrollLeft!==lockLeft)lockEl.scrollLeft=lockLeft;
-      const w=doc.defaultView;
-      if(w&&w.scrollX!==lockWinX)w.scrollTo(lockWinX,w.scrollY);
-    };
-    doc.addEventListener('mousedown',()=>{
-      dragging=true;
-      const fr=doc.defaultView.frameElement;
-      lockEl=boxOf(fr);
-      lockLeft=lockEl?lockEl.scrollLeft:0;
-      lockWinX=doc.defaultView.scrollX||0;
-      if(lockEl)lockEl.addEventListener('scroll',hold);
-      doc.defaultView.addEventListener('scroll',hold);
-    });
-    doc.addEventListener('mousemove',hold);
-    const endDrag=()=>{
-      if(!dragging)return;
-      dragging=false;
-      if(lockEl)lockEl.removeEventListener('scroll',hold);
-      doc.defaultView.removeEventListener('scroll',hold);
-    };
-    doc.addEventListener('mouseup',endDrag);
-    doc.addEventListener('mouseleave',endDrag);
-    window.addEventListener('mouseup',endDrag);      // 창 밖에서 놓았을 때
-    rendition.on('relocated',endDrag);
   });
   rendition.on('relocated',loc=>{
+    if(resizing)return;               // 다시 배치하는 도중의 중간 위치는 기록하지 않는다
     lastCfi=loc.start.cfi;updateProgress();paintSoon();
     if(sel2){sel2=null;pending=null;hideSel();hideGrips();}
     const s=bookState(current.id);s.cfi=lastCfi;s.at=Date.now();saveLocal();queueSync();
@@ -1966,7 +1927,9 @@ $('#pdfWrap').addEventListener('touchend',e=>{
 },{passive:true});
 
 /* ---------- 공통 이동 ---------- */
+let turnBusy=false;
 function turn(dir){
+  releaseDrag();
   if(kind==='pdf'){
     if(view.mode==='scroll'){
       const w=$('#pdfWrap');
@@ -1976,8 +1939,14 @@ function turn(dir){
     gotoPdfPage(pdfPage+(dir==='next'?1:-1));
     return;
   }
+  // 넘기는 도중 들어온 요청은 버린다 — 쌓이면 epub.js 가 전부 실행해 여러 장이 넘어간다
+  if(turnBusy||resizing)return;
+  turnBusy=true;
   const v=$('#viewer');v.classList.add('turning');
-  (dir==='next'?rendition.next():rendition.prev()).then(()=>setTimeout(()=>v.classList.remove('turning'),40));
+  const done=()=>{ turnBusy=false; setTimeout(()=>v.classList.remove('turning'),40); };
+  const safety=setTimeout(done,1200);
+  (dir==='next'?rendition.next():rendition.prev())
+    .then(()=>{clearTimeout(safety);done();},()=>{clearTimeout(safety);done();});
 }
 function updateProgress(){
   if(kind!=='epub'||!book||!book.locations||!book.locations.length())return;
@@ -2552,16 +2521,26 @@ function onKey(e){
   if(e.key==='Escape')backToShelf();
 }
 document.addEventListener('keydown',e=>{if($('#reader').classList.contains('on')&&!$$('.sheet.on').length)onKey(e);});
-let rsT;
+/* 화면 크기가 바뀔 때 (폴드 접고 펴기, 작업 표시줄·시스템 막대가 오르내릴 때)
+   epub.js 가 스스로 다시 배치하면서 중간 위치를 여러 번 알려 온다.
+   그 중간 위치를 "읽던 자리"로 삼으면 앞으로 밀려 여러 장이 넘어간다.
+   그래서 바뀌기 직전 자리를 붙잡아 두었다가, 다 끝난 뒤 그 자리로 한 번만 돌아간다. */
+let rsT=null,rsCfi=null,resizing=false;
 window.addEventListener('resize',()=>{
+  if(kind==='epub'&&rendition&&!resizing){ resizing=true; rsCfi=lastCfi; }
   clearTimeout(rsT);
   rsT=setTimeout(()=>{
-    if(kind==='epub'&&rendition&&lastCfi){
-      try{ rendition.spread(view.spread,spreadMin()); }catch(e){}
-      rendition.display(lastCfi).then(paintSoon);
-    }
+    if(kind==='epub'&&rendition&&rsCfi){
+      const c=rsCfi;
+      const finish=()=>{
+        resizing=false;rsCfi=null;lastCfi=c;
+        try{ const s=bookState(current.id);s.cfi=c;saveLocal(); }catch(e){}
+        updateProgress();paintSoon();
+      };
+      rendition.display(c).then(finish,finish);
+    }else{ resizing=false;rsCfi=null; }
     if(kind==='pdf'&&pdfDoc)buildPdfLayout();
-  },260);
+  },320);
 });
 function backToShelf(){
   saveLocal();syncState();hideSel();
